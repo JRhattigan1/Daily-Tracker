@@ -1,26 +1,17 @@
 name: daily-tracker
 services:
   daily-tracker:
-    image: ghcr.io/jrhattigan1/daily-tracker:latest
+    image: python:3.12-alpine
     container_name: daily-tracker
     restart: unless-stopped
+    working_dir: /app
+    command: ["python", "server.py"]
+    environment:
+      - DATA_DIR=/app/data
+      - PORT=8080
+      - TZ=Europe/London
+      - PYTHONUNBUFFERED=1
     ports:
       - "8090:8080"
     volumes:
-      - /DATA/AppData/daily-tracker/data:/data
-    environment:
-      - TZ=Europe/London
-    labels:
-      - com.centurylinklabs.watchtower.enable=true
-
-  watchtower:
-    image: nickfedor/watchtower:latest
-    container_name: daily-tracker-updater
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - TZ=Europe/London
-      - WATCHTOWER_LABEL_ENABLE=true
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_SCHEDULE=0 0 3 * * *
+      - /DATA/AppData/daily-tracker:/app

@@ -1,0 +1,23 @@
+name: Check
+
+# Runs on every push so a broken change shows up on GitHub straight away.
+# The tracker on your server also checks each new version itself before installing it.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Server compiles and loads
+        run: |
+          python -m py_compile server.py
+          AUTO_UPDATE=0 python -c "import runpy; runpy.run_path('server.py', run_name='check')"
+      - name: Page script is valid
+        run: node --check public/app.js
