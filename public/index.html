@@ -46,6 +46,7 @@
   <section class="grid" aria-label="Daily tasks">
     <div id="dayhead" class="track dayhead"></div>
     <div id="tasks" class="tasks"></div>
+    <div id="score" class="track score" aria-label="Daily score: share of each day's tasks done"></div>
   </section>
 
   <section class="plot" aria-label="Sleep">
@@ -54,6 +55,14 @@
       <div id="sleepAxis" class="axis" aria-hidden="true"></div>
     </div>
     <svg id="sleepSvg" class="psvg" role="group" aria-label="Sleep plot. Tap a day at the right height, or drag across several days."></svg>
+  </section>
+
+  <section class="plot" aria-label="Steps">
+    <div class="ptitle">
+      <div><h2>Steps</h2><p>per day</p></div>
+      <div id="stepsAxis" class="axis" aria-hidden="true"></div>
+    </div>
+    <svg id="stepsSvg" class="psvg" role="group" aria-label="Steps plot. Tap a day at the right height, or drag across several days."></svg>
   </section>
 
   <section class="plot" aria-label="Mood">
@@ -70,11 +79,31 @@
     <div class="stat"><span>Days all done</span><b id="statAll">0</b></div>
     <div class="stat"><span>Best streak</span><b id="statStreak">0</b></div>
     <div class="stat"><span>Avg sleep</span><b id="statSleep">-</b></div>
+    <div class="stat"><span>Avg steps</span><b id="statSteps">-</b></div>
     <div class="stat"><span>Avg mood</span><b id="statMood">-</b></div>
     <label class="field notes"><span>Notes</span><input id="notes" type="text" autocomplete="off" enterkeyhint="done"></label>
   </footer>
 
 </main>
+
+<div id="sched" class="sched" role="dialog" aria-labelledby="schedTitle" hidden>
+  <div id="schedTitle" class="sched-title"></div>
+  <div class="sched-days">
+    <button type="button" data-wd="1">Mon</button>
+    <button type="button" data-wd="2">Tue</button>
+    <button type="button" data-wd="3">Wed</button>
+    <button type="button" data-wd="4">Thu</button>
+    <button type="button" data-wd="5">Fri</button>
+    <button type="button" data-wd="6">Sat</button>
+    <button type="button" data-wd="0">Sun</button>
+  </div>
+  <div class="sched-actions">
+    <button type="button" class="pill" data-preset="all">Every day</button>
+    <button type="button" class="pill" data-preset="weekdays">Weekdays</button>
+    <button type="button" id="schedDone" class="pill strong">Done</button>
+  </div>
+  <p class="sched-note">Rest days are skipped: they don&#39;t count against totals, streaks or the day score, and chains carry straight through them.</p>
+</div>
 <script src="app.js"></script>
 </body>
 </html>

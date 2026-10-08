@@ -74,10 +74,10 @@ button { font: inherit; color: inherit; }
   box-sizing: border-box;
   height: 100vh;
   height: 100dvh;
-  min-height: 620px;
+  min-height: 700px;
   padding: max(18px, env(safe-area-inset-top)) clamp(16px, 2.6vw, 40px) max(14px, env(safe-area-inset-bottom));
   display: grid;
-  grid-template-rows: auto minmax(0, 8fr) minmax(0, 4.4fr) minmax(0, 2.8fr) auto auto;
+  grid-template-rows: auto minmax(0, 7fr) minmax(0, 3.6fr) minmax(0, 3.6fr) minmax(0, 2.5fr) auto auto;
   gap: clamp(8px, 1.4vh, 16px);
 }
 
@@ -188,7 +188,7 @@ h1 .yr { color: var(--ink); font-weight: 400; }
 .track { display: grid; grid-template-columns: var(--track); }
 
 /* Task grid */
-.grid { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+.grid { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; }
 
 .dayhead { align-items: end; border-bottom: 1.5px solid var(--rule); padding-bottom: 6px; }
 
@@ -270,6 +270,9 @@ h1 .yr { color: var(--ink); font-weight: 400; }
 .cell {
   appearance: none;
   -webkit-appearance: none;
+  position: relative;
+  container-type: inline-size;
+  --sq: min(78cqw, 26px); /* square size, from the cell's width */
   border: 0;
   margin: 0;
   padding: 0;
@@ -285,7 +288,7 @@ h1 .yr { color: var(--ink); font-weight: 400; }
 .cell::before {
   content: '';
   display: block;
-  width: min(78%, 26px);
+  width: var(--sq);
   aspect-ratio: 1;
   box-sizing: border-box;
   border: 1.5px solid var(--box);
@@ -295,6 +298,15 @@ h1 .yr { color: var(--ink); font-weight: 400; }
 
 .cell.we::before { background: var(--we); }
 .cell.today { background: var(--today); }
+
+/* Rest day: a small dot instead of a square (still tappable, counts as a bonus) */
+.cell.rest:not(.done):not(.part)::before {
+  width: 6px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--dot);
+}
+
 .cell.done::before { background: var(--accent); border-color: var(--accent); box-shadow: var(--glow); }
 
 /* Part done (e.g. 1 of 2): fill from the bottom up */
@@ -303,8 +315,42 @@ h1 .yr { color: var(--ink); font-weight: 400; }
   border-color: var(--accent);
 }
 
-/* Times per day, next to the task name */
-.tgt {
+/* Chains: consecutive done days join into one bar */
+.cell.done.jl::before { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.cell.done.jr::before { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+
+.cell.done.jl::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: calc((var(--sq) - 100cqw) / 2 - 1px);
+  width: calc(100cqw - var(--sq) + 2px);
+  height: var(--sq);
+  transform: translateY(-50%);
+  background: var(--accent);
+  pointer-events: none;
+}
+
+/* ...and run through rest days as a thinner link */
+.cell.thru::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: calc((var(--sq) - 100cqw) / 2 - 1px);
+  width: calc(200cqw - var(--sq) + 2px);
+  height: calc(var(--sq) * 0.34);
+  transform: translateY(-50%);
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.cell:active::before { transform: scale(0.86); }
+.cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cell.out { cursor: default; }
+.cell.out::before { border: 1px dashed var(--line); background: none; }
+
+/* Small pills next to the task name: times per day and days per week */
+.pill-s {
   flex: none;
   align-self: flex-end;
   min-width: 28px;
@@ -317,17 +363,76 @@ h1 .yr { color: var(--ink); font-weight: 400; }
   color: var(--faint);
   cursor: pointer;
   touch-action: manipulation;
+  white-space: nowrap;
 }
 
-.tgt.multi { color: var(--accent); border-color: var(--accent); font-weight: 500; }
-.tgt:active { background: var(--we); }
-/* x1 only appears while editing that task's name; x2 and up always show */
-.tgt:not(.multi) { display: none; }
-.tlab:focus-within .tgt:not(.multi) { display: block; }
-.cell:active::before { transform: scale(0.86); }
-.cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.cell.out { cursor: default; }
-.cell.out::before { border: 1px dashed var(--line); background: none; }
+.pill-s.multi { color: var(--accent); border-color: var(--accent); font-weight: 500; }
+.pill-s:active { background: var(--we); }
+/* Default settings (x1, 7/wk) only show while editing that task; anything else always shows */
+.pill-s:not(.multi) { display: none; }
+.tlab:focus-within .pill-s:not(.multi) { display: block; }
+
+/* Day score strip under the tasks */
+.score { align-items: center; height: 24px; border-bottom: 1px solid var(--line); }
+.score .lab { padding-bottom: 0; font-size: 11px; }
+
+.sc {
+  position: relative;
+  height: 12px;
+  margin: 0 1px;
+  border-radius: 3px;
+  background: var(--we);
+}
+
+.sc::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  opacity: var(--f, 0);
+}
+
+.sc.full::after { box-shadow: var(--glow); }
+.sc.today { outline: 1.5px solid var(--accent); outline-offset: 1px; }
+.sc.none { background: none; border: 1px dashed var(--line); box-sizing: border-box; }
+.sc.none::after, .sc.out::after { display: none; }
+.sc.out { background: none; }
+
+/* Rest days picker */
+.sched {
+  position: fixed;
+  z-index: 20;
+  width: min(360px, calc(100vw - 16px));
+  box-sizing: border-box;
+  padding: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
+
+.sched[hidden] { display: none; }
+.sched-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; overflow-wrap: anywhere; }
+.sched-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+
+.sched-days button {
+  height: 44px;
+  border: 1.5px solid var(--box);
+  border-radius: 8px;
+  background: none;
+  font: 500 13px var(--mono);
+  color: var(--muted);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.sched-days button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.sched-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.sched-actions .pill { margin-left: 0; }
+.sched-actions .pill.strong { margin-left: auto; color: var(--ink); border-color: var(--ink); }
+.sched-note { margin: 10px 0 0; font-size: 12px; line-height: 1.4; color: var(--muted); }
 
 .tot {
   display: flex;

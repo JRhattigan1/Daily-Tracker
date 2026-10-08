@@ -10,7 +10,7 @@ downloads it, checks it, swaps in the new server.py and public/ folder,
 and restarts itself. The data folder is never touched.
 
   GET  /api/month/YYYY-MM   -> {"exists": true, "data": {...}}
-                               or {"exists": false, "templates": [{name, target} from the latest earlier month]}
+                               or {"exists": false, "templates": [{name, target, schedule} from the latest earlier month]}
   PUT  /api/month/YYYY-MM   -> saves the month (JSON object, up to 256 KB)
   GET  /api/version         -> {"version": "...", "update": {...}}  (the page reloads when version changes)
   GET  /api/health          -> {"ok": true, "version": "..."}
@@ -248,7 +248,11 @@ def latest_task_templates(before: str) -> list:
                 if not isinstance(t, dict) or not isinstance(t.get("name", ""), str):
                     continue
                 target = t.get("target", 1)
-                templates.append({"name": t.get("name", ""), "target": target if isinstance(target, int) and target > 0 else 1})
+                tpl = {"name": t.get("name", ""), "target": target if isinstance(target, int) and target > 0 else 1}
+                schedule = t.get("schedule")
+                if isinstance(schedule, list) and len(schedule) == 7:
+                    tpl["schedule"] = [bool(x) for x in schedule]
+                templates.append(tpl)
             if any(t["name"].strip() for t in templates):
                 return templates
         except (OSError, ValueError):

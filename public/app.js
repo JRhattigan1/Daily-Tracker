@@ -7,6 +7,8 @@
     sleepMin: 3,      // lowest hour on the sleep plot
     sleepMax: 11,     // highest hour on the sleep plot
     sleepTarget: 8,   // highlighted with a dashed line
+    stepsMax: 16000,  // top of the steps plot
+    stepsTarget: 10000, // highlighted with a dashed line
     maxTarget: 6,     // most times per day a task can be set to
   };
 
@@ -14,11 +16,24 @@
   const WD = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
   const MOODS = ['Great', 'Good', 'Okay', 'Low', 'Rough']; // top to bottom, values 5 to 1
 
+  // Each plot: value range, how far apart the rows of dots are (unit), what a tap snaps to (step),
+  // an optional target line, and the axis label for each row (blank to skip a row).
   const PLOTS = {
-    sleep: { id: 'sleepSvg', top: CFG.sleepMax, bottom: CFG.sleepMin, step: 0.5 },
-    mood: { id: 'moodSvg', top: 5, bottom: 1, step: 1 },
+    sleep: {
+      id: 'sleepSvg', axis: 'sleepAxis', top: CFG.sleepMax, bottom: CFG.sleepMin, unit: 1, step: 0.5, target: CFG.sleepTarget,
+      label: (v) => `${v}h`,
+    },
+    steps: {
+      id: 'stepsSvg', axis: 'stepsAxis', top: CFG.stepsMax, bottom: 0, unit: 2000, step: 500, target: CFG.stepsTarget,
+      label: (v) => (v % 4000 === 0 || v === CFG.stepsTarget ? `${v / 1000}k` : ''),
+    },
+    mood: {
+      id: 'moodSvg', axis: 'moodAxis', top: 5, bottom: 1, unit: 1, step: 1, target: null,
+      label: (v) => MOODS[5 - v],
+    },
   };
-  for (const p of Object.values(PLOTS)) p.levels = Math.round(p.top - p.bottom) + 1;
+  for (const p of Object.values(PLOTS)) p.levels = Math.round((p.top - p.bottom) / p.unit) + 1;
+  const PLOT_KINDS = Object.keys(PLOTS);
 
   const el = (id) => document.getElementById(id);
 
@@ -67,12 +82,20 @@
     return Number.isFinite(n) && n > 0 ? Math.min(CFG.maxTarget, n) : 0;
   }
 
-  function emptyTask(name, target) {
-    return { name: name || '', target: cleanTarget(target), days: fill(31, 0) };
+  // Which weekdays a task is due, Sunday first (matches Date.getDay). Off days are rest days.
+  const EVERY_DAY = [true, true, true, true, true, true, true];
+  function cleanSchedule(v) {
+    if (!Array.isArray(v) || v.length !== 7) return EVERY_DAY.slice();
+    const out = v.map(Boolean);
+    return out.some(Boolean) ? out : EVERY_DAY.slice();
+  }
+
+  function emptyTask(name, target, schedule) {
+    return { name: name || '', target: cleanTarget(target), schedule: cleanSchedule(schedule), days: fill(31, 0) };
   }
 
   function normalise(d, templates) {
-    const out = { tasks: [], sleep: fill(31, null), mood: fill(31, null), focus: '', notes: '' };
+    const out = { tasks: [], sleep: fill(31, null), steps: fill(31, null), mood: fill(31, null), focus: '', notes: '' };
     if (d && typeof d === 'object') {
       if (Array.isArray(d.tasks)) {
         out.tasks = d.tasks
@@ -82,24 +105,65 @@
             return {
               name: typeof t.name === 'string' ? t.name : '',
               target,
+              schedule: cleanSchedule(t.schedule),
               days: fill(31, 0).map((_, i) => cleanCount(Array.isArray(t.days) ? t.days[i] : 0, target)),
             };
           });
       }
-      for (const k of ['sleep', 'mood']) {
+      for (const k of PLOT_KINDS) {
         if (Array.isArray(d[k])) out[k] = out[k].map((_, i) => (typeof d[k][i] === 'number' ? d[k][i] : null));
       }
       if (typeof d.focus === 'string') out.focus = d.focus;
       if (typeof d.notes === 'string') out.notes = d.notes;
     } else if (Array.isArray(templates)) {
-      // A new month: carry over last month's task names and targets
-      out.tasks = templates.map((t) => (typeof t === 'string' ? emptyTask(t, 1) : emptyTask(String((t && t.name) || ''), t && t.target)));
+      // A new month: carry over last month's task names, targets and rest days
+      out.tasks = templates.map((t) => (typeof t === 'string' ? emptyTask(t, 1) : emptyTask(String((t && t.name) || ''), t && t.target, t && t.schedule)));
     }
     while (out.tasks.length < CFG.taskRows) out.tasks.push(emptyTask('', 1));
     return out;
   }
 
   const isDone = (t, i) => t.days[i] >= t.target;
+  const isDue = (t, i) => t.schedule[weekdayOf(i)];
+
+  function countDue(t) {
+    const n = daysIn(cur);
+    let c = 0;
+    for (let i = 0; i < n; i++) if (isDue(t, i)) c++;
+    return c;
+  }
+
+  // Chains: completed days link to the previous completed day. Rest days in between
+  // don't break the chain, the link runs straight through them.
+  function chainInfo(t) {
+    const n = daysIn(cur);
+    const jl = fill(31, false);
+    const jr = fill(31, false);
+    const thru = fill(31, false);
+    for (let i = 0; i < n; i++) {
+      if (!isDone(t, i)) continue;
+      let p = i - 1;
+      while (p >= 0 && !isDue(t, p) && !isDone(t, p)) p--;
+      if (p >= 0 && isDone(t, p)) {
+        if (p === i - 1) {
+          // Neighbours: join into one solid bar
+          jl[i] = true;
+          jr[p] = true;
+        } else {
+          // Rest days in between: a thinner link runs through them
+          for (let k = p + 1; k < i; k++) thru[k] = true;
+        }
+      }
+    }
+    return { jl, jr, thru };
+  }
+
+  // Share of the day's due tasks that were done (part-done counts partly). null if nothing was due.
+  function dayScore(i) {
+    const named = data.tasks.filter((t) => t.name.trim() && isDue(t, i));
+    if (!named.length) return null;
+    return named.reduce((a, t) => a + Math.min(t.days[i], t.target) / t.target, 0) / named.length;
+  }
 
   function countDone(t) {
     const n = daysIn(cur);
@@ -179,6 +243,7 @@
 
   // ---------- rendering ----------
   function render() {
+    closeSchedule();
     const n = daysIn(cur);
     const ti = todayIndex();
 
@@ -206,10 +271,15 @@
     box.querySelectorAll('.tname').forEach((inp) => { inp.value = data.tasks[Number(inp.dataset.r)].name; inp.title = inp.value; });
 
     // Axis labels
-    let sa = '';
-    for (let v = CFG.sleepMax; v >= CFG.sleepMin; v--) sa += `<span class="${v === CFG.sleepTarget ? 'tg' : ''}">${v}h</span>`;
-    el('sleepAxis').innerHTML = sa;
-    el('moodAxis').innerHTML = MOODS.map((m) => `<span>${m}</span>`).join('');
+    for (const kind of PLOT_KINDS) {
+      const P = PLOTS[kind];
+      let s = '';
+      for (let l = 0; l < P.levels; l++) {
+        const v = P.top - l * P.unit;
+        s += `<span class="${v === P.target ? 'tg' : ''}">${P.label(v)}</span>`;
+      }
+      el(P.axis).innerHTML = s;
+    }
 
     // Day numbers under the plots
     let ax = '<span></span>';
@@ -223,47 +293,86 @@
 
   function targetLabel(t) { return `×${t.target}`; }
 
+  const WD_LONG = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const isEveryDay = (t) => t.schedule.every(Boolean);
+  function scheduleLabel(t) { return `${t.schedule.filter(Boolean).length}/wk`; }
+  function scheduleWords(t) {
+    if (isEveryDay(t)) return 'every day';
+    return [1, 2, 3, 4, 5, 6, 0].filter((d) => t.schedule[d]).map((d) => WD_LONG[d]).join(', ');
+  }
+
   function cellLabel(t, r, i) {
-    const base = `Task ${r + 1}, ${i + 1} ${MONTHS[cur.m - 1]}`;
-    return t.target > 1 ? `${base}, ${Math.min(t.days[i], t.target)} of ${t.target}` : base;
+    let s = `Task ${r + 1}, ${i + 1} ${MONTHS[cur.m - 1]}`;
+    if (!isDue(t, i)) s += ', rest day';
+    if (t.target > 1) s += `, ${Math.min(t.days[i], t.target)} of ${t.target}`;
+    return s;
   }
 
-  // Classes and fill level for one day's square
-  function cellState(t, i) {
+  // Everything about how one day's square looks
+  function cellView(t, i, ch, ti) {
     const c = Math.min(t.days[i], t.target);
-    return { done: c >= t.target, part: c > 0 && c < t.target, p: (c / t.target).toFixed(3) };
+    const done = c >= t.target;
+    const part = c > 0 && c < t.target;
+    const cls = ['cell'];
+    if (isWeekend(i)) cls.push('we');
+    if (i === ti) cls.push('today');
+    if (!isDue(t, i)) cls.push('rest');
+    if (done) cls.push('done');
+    if (part) cls.push('part');
+    if (ch.jl[i]) cls.push('jl');
+    if (ch.jr[i]) cls.push('jr');
+    if (ch.thru[i]) cls.push('thru');
+    return { cls: cls.join(' '), p: (c / t.target).toFixed(3), pressed: done ? 'true' : part ? 'mixed' : 'false' };
   }
 
-  function paintCell(b, t, r, i) {
-    const st = cellState(t, i);
-    b.classList.toggle('done', st.done);
-    b.classList.toggle('part', st.part);
-    b.style.setProperty('--p', st.p);
-    b.setAttribute('aria-pressed', st.done ? 'true' : st.part ? 'mixed' : 'false');
-    b.setAttribute('aria-label', cellLabel(t, r, i));
+  function totalHtml(t) { return `<b>${countDone(t)}</b>/${countDue(t)}`; }
+
+  // Repaint one task's row after a change (squares, chains, rest days, total)
+  function paintRow(r) {
+    const t = data.tasks[r];
+    const ch = chainInfo(t);
+    const ti = todayIndex();
+    el('tasks').querySelectorAll(`button.cell[data-r="${r}"]`).forEach((b) => {
+      const i = Number(b.dataset.d);
+      const v = cellView(t, i, ch, ti);
+      b.className = v.cls;
+      b.style.setProperty('--p', v.p);
+      b.setAttribute('aria-pressed', v.pressed);
+      b.setAttribute('aria-label', cellLabel(t, r, i));
+    });
+    el('tasks').querySelector(`[data-tot="${r}"]`).innerHTML = totalHtml(t);
+    paintPills(r);
+  }
+
+  function paintPills(r) {
+    const t = data.tasks[r];
+    const tb = el('tasks').querySelector(`button.tgt[data-r="${r}"]`);
+    tb.textContent = targetLabel(t);
+    tb.classList.toggle('multi', t.target > 1);
+    tb.setAttribute('aria-label', `Times per day for task ${r + 1}: ${t.target}. Tap to change.`);
+    const sb = el('tasks').querySelector(`button.sch[data-r="${r}"]`);
+    sb.textContent = scheduleLabel(t);
+    sb.classList.toggle('multi', !isEveryDay(t));
+    sb.setAttribute('aria-label', `Days for task ${r + 1}: ${scheduleWords(t)}. Tap to change.`);
   }
 
   function rowHtml(t, r, n, ti) {
     const num = String(r + 1).padStart(2, '0');
+    const ch = chainInfo(t);
     let s = `<div class="trow"><div class="tlab"><span class="num">${num}</span>`;
     s += `<input class="tname" data-r="${r}" type="text" placeholder="Add a task" aria-label="Task ${r + 1} name" autocomplete="off" enterkeyhint="done">`;
-    s += `<button type="button" class="tgt${t.target > 1 ? ' multi' : ''}" data-r="${r}" aria-label="Times per day for task ${r + 1}: ${t.target}. Tap to change.">${targetLabel(t)}</button></div>`;
+    s += `<button type="button" class="pill-s tgt${t.target > 1 ? ' multi' : ''}" data-r="${r}" aria-label="Times per day for task ${r + 1}: ${t.target}. Tap to change.">${targetLabel(t)}</button>`;
+    s += `<button type="button" class="pill-s sch${isEveryDay(t) ? '' : ' multi'}" data-r="${r}" aria-haspopup="dialog" aria-label="Days for task ${r + 1}: ${scheduleWords(t)}. Tap to change.">${scheduleLabel(t)}</button></div>`;
     for (let i = 0; i < 31; i++) {
       if (i >= n) { s += '<span class="cell out" aria-hidden="true"></span>'; continue; }
-      const st = cellState(t, i);
-      const cls = ['cell'];
-      if (isWeekend(i)) cls.push('we');
-      if (i === ti) cls.push('today');
-      if (st.done) cls.push('done');
-      if (st.part) cls.push('part');
-      const pressed = st.done ? 'true' : st.part ? 'mixed' : 'false';
-      s += `<button type="button" class="${cls.join(' ')}" style="--p:${st.p}" data-r="${r}" data-d="${i}" aria-pressed="${pressed}" aria-label="${cellLabel(t, r, i)}"></button>`;
+      const v = cellView(t, i, ch, ti);
+      s += `<button type="button" class="${v.cls}" style="--p:${v.p}" data-r="${r}" data-d="${i}" aria-pressed="${v.pressed}" aria-label="${cellLabel(t, r, i)}"></button>`;
     }
-    s += `<div class="tot"><b data-tot="${r}">${countDone(t)}</b>/${n}</div></div>`;
+    s += `<div class="tot" data-tot="${r}">${totalHtml(t)}</div></div>`;
     return s;
   }
 
-  function drawPlots() { drawPlot('sleep'); drawPlot('mood'); }
+  function drawPlots() { PLOT_KINDS.forEach(drawPlot); }
 
   function drawPlot(kind) {
     const P = PLOTS[kind];
@@ -277,15 +386,15 @@
     const cw = w / 31;
     const band = h / P.levels;
     const x = (i) => ((i + 0.5) * cw).toFixed(1);
-    const y = (v) => ((P.top - v + 0.5) * band).toFixed(1);
+    const y = (v) => (((P.top - v) / P.unit + 0.5) * band).toFixed(1);
 
     let s = '';
     for (let i = 0; i < n; i++) {
       if (i === ti) s += `<rect class="today" x="${(i * cw).toFixed(1)}" y="0" width="${cw.toFixed(1)}" height="${h}"/>`;
       else if (isWeekend(i)) s += `<rect class="we" x="${(i * cw).toFixed(1)}" y="0" width="${cw.toFixed(1)}" height="${h}"/>`;
     }
-    if (kind === 'sleep') {
-      const ty = y(CFG.sleepTarget);
+    if (P.target != null) {
+      const ty = y(P.target);
       s += `<line class="target" x1="0" x2="${(n * cw).toFixed(1)}" y1="${ty}" y2="${ty}"/>`;
     }
     for (let l = 0; l < P.levels; l++) {
@@ -312,19 +421,25 @@
     const n = daysIn(cur);
     const last = lastCountedDay();
     const named = data.tasks.filter((t) => t.name.trim());
+
+    // A day counts as all done when every named task due that day is done.
+    // Days where nothing is due (all rest days) neither count nor break the streak.
     let all = 0;
     let best = 0;
     let run = 0;
-    if (named.length) {
-      for (let i = 0; i <= last; i++) {
-        if (named.every((t) => isDone(t, i))) { all++; run++; if (run > best) best = run; } else run = 0;
-      }
+    for (let i = 0; i <= last; i++) {
+      const due = named.filter((t) => isDue(t, i));
+      if (!due.length) continue;
+      if (due.every((t) => isDone(t, i))) { all++; run++; if (run > best) best = run; } else run = 0;
     }
     el('statAll').textContent = String(all);
     el('statStreak').textContent = best === 1 ? '1 day' : `${best} days`;
 
     const sl = data.sleep.slice(0, n).filter((v) => v != null);
     el('statSleep').textContent = sl.length ? `${(sl.reduce((a, b) => a + b, 0) / sl.length).toFixed(1)}h` : '-';
+
+    const st = data.steps.slice(0, n).filter((v) => v != null);
+    el('statSteps').textContent = st.length ? `${(st.reduce((a, b) => a + b, 0) / st.length / 1000).toFixed(1)}k` : '-';
 
     const md = data.mood.slice(0, n).filter((v) => v != null);
     if (md.length) {
@@ -333,13 +448,38 @@
     } else {
       el('statMood').textContent = '-';
     }
+
+    renderScore();
+  }
+
+  // Daily score strip: each day shaded by the share of that day's tasks done
+  function renderScore() {
+    const n = daysIn(cur);
+    const last = lastCountedDay();
+    const ti = todayIndex();
+    let s = '<div class="lab">Day score</div>';
+    const counted = [];
+    for (let i = 0; i < 31; i++) {
+      if (i >= n) { s += '<span class="sc out"></span>'; continue; }
+      const f = dayScore(i);
+      if (f !== null && i <= last) counted.push(f);
+      const cls = ['sc'];
+      if (f === null) cls.push('none');
+      if (f === 1) cls.push('full');
+      if (i === ti) cls.push('today');
+      const pct = f === null ? 'nothing due' : `${Math.round(f * 100)}%`;
+      s += `<span class="${cls.join(' ')}" style="--f:${f === null ? 0 : f.toFixed(3)}" title="${i + 1} ${MONTHS[cur.m - 1]}: ${pct}"></span>`;
+    }
+    const avg = counted.length ? `${Math.round((counted.reduce((a, b) => a + b, 0) / counted.length) * 100)}%` : '-';
+    s += `<div class="tot" title="Average so far"><b>${avg}</b></div>`;
+    el('score').innerHTML = s;
   }
 
   // ---------- interaction ----------
   function buzz(pattern) { if (navigator.vibrate) navigator.vibrate(pattern || 8); }
 
   el('tasks').addEventListener('click', (e) => {
-    // Times-per-day button: cycles 1, 2, 3 ... up to the max, then back to 1
+    // Times-per-day pill: cycles 1, 2, 3 ... up to the max, then back to 1
     const tb = e.target.closest('button.tgt');
     if (tb) {
       const r = Number(tb.dataset.r);
@@ -348,14 +488,18 @@
       t.target = t.target >= CFG.maxTarget ? 1 : t.target + 1;
       // Days already complete stay complete; part-done days keep their count
       t.days = t.days.map((c) => (c >= prev ? t.target : Math.min(c, t.target)));
-      tb.textContent = targetLabel(t);
-      tb.classList.toggle('multi', t.target > 1);
-      tb.setAttribute('aria-label', `Times per day for task ${r + 1}: ${t.target}. Tap to change.`);
-      el('tasks').querySelectorAll(`button.cell[data-r="${r}"]`).forEach((b) => paintCell(b, t, r, Number(b.dataset.d)));
-      el('tasks').querySelector(`[data-tot="${r}"]`).textContent = String(countDone(t));
+      paintRow(r);
       buzz();
       updateStats();
       changed();
+      return;
+    }
+
+    // Days-per-week pill: opens the rest days picker
+    const sb = e.target.closest('button.sch');
+    if (sb) {
+      const r = Number(sb.dataset.r);
+      if (schedRow === r) closeSchedule(); else openSchedule(r, sb);
       return;
     }
 
@@ -366,8 +510,7 @@
     const d = Number(b.dataset.d);
     const t = data.tasks[r];
     t.days[d] = t.days[d] >= t.target ? 0 : t.days[d] + 1;
-    paintCell(b, t, r, d);
-    el('tasks').querySelector(`[data-tot="${r}"]`).textContent = String(countDone(t));
+    paintRow(r);
     buzz(t.days[d] === t.target && t.target > 1 ? [8, 60, 8] : 8);
     updateStats();
     changed();
@@ -381,9 +524,73 @@
     changed();
   });
 
-  // Keep the name field focused when tapping its times-per-day pill, so the pill doesn't vanish mid-tap
+  // Keep the name field focused when tapping one of its pills, so the pills don't vanish mid-tap
   el('tasks').addEventListener('pointerdown', (e) => {
-    if (e.target.closest('button.tgt')) e.preventDefault();
+    if (e.target.closest('button.pill-s')) e.preventDefault();
+  });
+
+  // Rest days picker
+  let schedRow = -1;
+
+  function paintSchedule() {
+    const t = data.tasks[schedRow];
+    el('sched').querySelectorAll('[data-wd]').forEach((b) => {
+      const on = t.schedule[Number(b.dataset.wd)];
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  function openSchedule(r, anchor) {
+    schedRow = r;
+    const t = data.tasks[r];
+    const pop = el('sched');
+    el('schedTitle').textContent = t.name.trim() ? `Which days for “${t.name.trim()}”?` : `Which days for task ${r + 1}?`;
+    paintSchedule();
+    pop.hidden = false;
+    const a = anchor.getBoundingClientRect();
+    const pw = pop.offsetWidth;
+    const ph = pop.offsetHeight;
+    const left = Math.min(Math.max(8, a.left), window.innerWidth - pw - 8);
+    let top = a.bottom + 6;
+    if (top + ph > window.innerHeight - 8) top = a.top - ph - 6;
+    pop.style.left = `${left}px`;
+    pop.style.top = `${Math.max(8, top)}px`;
+  }
+
+  function closeSchedule() {
+    el('sched').hidden = true;
+    schedRow = -1;
+  }
+
+  el('sched').addEventListener('click', (e) => {
+    const t = data.tasks[schedRow];
+    if (!t) return;
+    if (e.target.closest('#schedDone')) { closeSchedule(); return; }
+    const wd = e.target.closest('[data-wd]');
+    const pr = e.target.closest('[data-preset]');
+    if (wd) {
+      const d = Number(wd.dataset.wd);
+      t.schedule[d] = !t.schedule[d];
+      if (!t.schedule.some(Boolean)) t.schedule[d] = true; // at least one day
+    } else if (pr) {
+      t.schedule = pr.dataset.preset === 'weekdays' ? [false, true, true, true, true, true, false] : EVERY_DAY.slice();
+    } else {
+      return;
+    }
+    paintSchedule();
+    paintRow(schedRow);
+    buzz();
+    updateStats();
+    changed();
+  });
+
+  document.addEventListener('pointerdown', (e) => {
+    if (!el('sched').hidden && !e.target.closest('#sched') && !e.target.closest('button.sch')) closeSchedule();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !el('sched').hidden) closeSchedule();
   });
 
   el('tasks').addEventListener('focusout', (e) => {
@@ -406,7 +613,7 @@
       const rect = svg.getBoundingClientRect();
       const i = Math.floor(((e.clientX - rect.left) / rect.width) * 31);
       const band = rect.height / P.levels;
-      let v = P.top - ((e.clientY - rect.top) / band - 0.5);
+      let v = P.top - ((e.clientY - rect.top) / band - 0.5) * P.unit;
       v = Math.round(v / P.step) * P.step;
       v = Math.max(P.bottom, Math.min(P.top, v));
       return { i, v };
@@ -455,10 +662,10 @@
     svg.addEventListener('pointercancel', end);
   }
 
-  bindPlot('sleep');
-  bindPlot('mood');
+  PLOT_KINDS.forEach(bindPlot);
 
   async function go(delta) {
+    closeSchedule();
     await flush();
     let m = cur.m + delta;
     let y = cur.y;
@@ -495,8 +702,7 @@
   // Redraw plots when the screen size or orientation changes
   if ('ResizeObserver' in window) {
     const ro = new ResizeObserver(() => { if (data) drawPlots(); });
-    ro.observe(el('sleepSvg'));
-    ro.observe(el('moodSvg'));
+    PLOT_KINDS.forEach((k) => ro.observe(el(PLOTS[k].id)));
   } else {
     window.addEventListener('resize', () => { if (data) drawPlots(); });
   }
@@ -504,7 +710,7 @@
   // Keep a wall tablet current: roll over at midnight, pick up edits made on other devices
   function idle() {
     const a = document.activeElement;
-    return !queue.size && !dragging && !flushing && !(a && a.tagName === 'INPUT');
+    return !queue.size && !dragging && !flushing && el('sched').hidden && !(a && a.tagName === 'INPUT');
   }
 
   setInterval(() => {

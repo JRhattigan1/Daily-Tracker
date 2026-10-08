@@ -1,6 +1,6 @@
 # Daily Tracker
 
-A tap-to-tick version of the monthly habit sheet for a wall or coffee-table tablet. Tasks down the left, days across the top, with sleep and mood plots underneath. Everything is saved on your server as one small JSON file per month.
+A tap-to-tick version of the monthly habit sheet for a wall or coffee-table tablet. Tasks down the left, days across the top, with sleep, steps and mood plots underneath. Everything is saved on your server as one small JSON file per month.
 
 It's one Python file and a folder of web files, standard library only, nothing to install.
 
@@ -45,7 +45,7 @@ Set these as environment variables in the app's settings on ZimaOS. All are opti
 | `GITHUB_TOKEN` | none | Only needed if the repo is private. |
 | `PORT`, `DATA_DIR` | `8080`, `./data` | Where it listens and saves. |
 
-The top of `public/app.js` has a few values for the page itself: the minimum number of task rows, the sleep range and the sleep target.
+The top of `public/app.js` has a few values for the page itself: the minimum number of task rows, the sleep range and target, and the steps range and target.
 
 ## Rolling back
 
@@ -67,8 +67,11 @@ It listens on port 8080 and stores data in `./data`.
 
 - Tap a square to tick it, tap again to clear it.
 - For tasks you do more than once a day, tap the task name and a small ×1 pill appears beside it. Tap the pill to set how many times (up to ×6). Pills of ×2 and up stay visible; ×1 hides again to leave room for the name. Each tap on a square then adds one and fills it partway, and it counts as done once it's full. One more tap clears it. Changing the number keeps days you'd already completed as complete.
+- Tasks you don't do every day: tap the task name and a "7/wk" pill appears. Tap it to pick which weekdays the task is due (with Every day and Weekdays shortcuts). Off days show as a small dot. They don't count against the total, the day score or streaks, and ticking one anyway counts as a bonus.
+- Consecutive completed days join up into a solid bar, so streaks read as chains. Across rest days the chain carries on as a thinner link instead of breaking.
+- The Day score strip under the tasks shades each day by how much of that day's due tasks you did (part-done tasks count partly), with the month's average on the right.
 - Tap a task name to type or edit it. Very long names end in "..." on narrow screens and show in full while you edit them. A new month starts with last month's task names and times per day.
-- On the plots, tap a day at the right height to set sleep or mood, or drag a finger across several days to draw the line in one go. Sleep snaps to the nearest half hour. Tap an existing point again to clear it.
+- On the plots, tap a day at the right height to set sleep, steps or mood, or drag a finger across several days to draw the line in one go. Sleep snaps to the nearest half hour and steps to the nearest 500, with dashed target lines at 8 hours and 10,000 steps. Tap an existing point again to clear it.
 - The arrows beside the month change month. "This month" jumps back.
 - Totals, days all done, best streak and averages work themselves out. Days all done and best streak only count days up to today, and only tasks that have a name.
 - The theme button cycles Auto, Light and Dark. Auto follows the tablet's setting.
