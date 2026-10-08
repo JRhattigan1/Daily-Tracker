@@ -66,7 +66,8 @@ It listens on port 8080 and stores data in `./data`.
 ## Using it
 
 - Tap a square to tick it, tap again to clear it.
-- Tap a task name to type or edit it. A new month starts with last month's task names.
+- For tasks you do more than once a day, tap the small ×1 pill beside the task name to set how many times (up to ×6). Each tap on a square then adds one and fills it partway, and it counts as done once it's full. One more tap clears it. Changing the number keeps days you'd already completed as complete.
+- Tap a task name to type or edit it. A new month starts with last month's task names and times per day.
 - On the plots, tap a day at the right height to set sleep or mood, or drag a finger across several days to draw the line in one go. Sleep snaps to the nearest half hour. Tap an existing point again to clear it.
 - The arrows beside the month change month. "This month" jumps back.
 - Totals, days all done, best streak and averages work themselves out. Days all done and best streak only count days up to today, and only tasks that have a name.

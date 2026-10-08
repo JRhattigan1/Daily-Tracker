@@ -7,6 +7,7 @@
     sleepMin: 3,      // lowest hour on the sleep plot
     sleepMax: 11,     // highest hour on the sleep plot
     sleepTarget: 8,   // highlighted with a dashed line
+    maxTarget: 6,     // most times per day a task can be set to
   };
 
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -53,33 +54,57 @@
   // ---------- data ----------
   const fill = (n, v) => Array.from({ length: n }, () => v);
 
-  function normalise(d, names) {
+  // Each task has a target (times per day) and a count per day.
+  // Older saves stored true/false per day: true becomes a full count.
+  function cleanTarget(v) {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.min(CFG.maxTarget, Math.max(1, n)) : 1;
+  }
+
+  function cleanCount(v, target) {
+    if (v === true) return target;
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) && n > 0 ? Math.min(CFG.maxTarget, n) : 0;
+  }
+
+  function emptyTask(name, target) {
+    return { name: name || '', target: cleanTarget(target), days: fill(31, 0) };
+  }
+
+  function normalise(d, templates) {
     const out = { tasks: [], sleep: fill(31, null), mood: fill(31, null), focus: '', notes: '' };
     if (d && typeof d === 'object') {
       if (Array.isArray(d.tasks)) {
         out.tasks = d.tasks
           .filter((t) => t && typeof t === 'object')
-          .map((t) => ({
-            name: typeof t.name === 'string' ? t.name : '',
-            days: fill(31, false).map((_, i) => !!(Array.isArray(t.days) && t.days[i])),
-          }));
+          .map((t) => {
+            const target = cleanTarget(t.target);
+            return {
+              name: typeof t.name === 'string' ? t.name : '',
+              target,
+              days: fill(31, 0).map((_, i) => cleanCount(Array.isArray(t.days) ? t.days[i] : 0, target)),
+            };
+          });
       }
       for (const k of ['sleep', 'mood']) {
         if (Array.isArray(d[k])) out[k] = out[k].map((_, i) => (typeof d[k][i] === 'number' ? d[k][i] : null));
       }
       if (typeof d.focus === 'string') out.focus = d.focus;
       if (typeof d.notes === 'string') out.notes = d.notes;
-    } else if (Array.isArray(names)) {
-      out.tasks = names.map((n) => ({ name: String(n || ''), days: fill(31, false) }));
+    } else if (Array.isArray(templates)) {
+      // A new month: carry over last month's task names and targets
+      out.tasks = templates.map((t) => (typeof t === 'string' ? emptyTask(t, 1) : emptyTask(String((t && t.name) || ''), t && t.target)));
     }
-    while (out.tasks.length < CFG.taskRows) out.tasks.push({ name: '', days: fill(31, false) });
+    while (out.tasks.length < CFG.taskRows) out.tasks.push(emptyTask('', 1));
     return out;
   }
+
+  const isDone = (t, i) => t.days[i] >= t.target;
 
   function countDone(t) {
     const n = daysIn(cur);
     let c = 0;
-    for (let i = 0; i < n; i++) if (t.days[i]) c++;
+    for (let i = 0; i < n; i++) if (isDone(t, i)) c++;
     return c;
   }
 
@@ -93,7 +118,7 @@
       const body = await res.json();
       if (token !== loadToken) return;
       if (queue.has(key)) data = normalise(JSON.parse(queue.get(key)));
-      else data = body.exists ? normalise(body.data) : normalise(null, body.tasks);
+      else data = body.exists ? normalise(body.data) : normalise(null, body.templates || body.tasks);
       if (!queue.size) setStatus('Saved');
     } catch (e) {
       if (token !== loadToken) return;
@@ -196,17 +221,43 @@
     updateStats();
   }
 
+  function targetLabel(t) { return `×${t.target}`; }
+
+  function cellLabel(t, r, i) {
+    const base = `Task ${r + 1}, ${i + 1} ${MONTHS[cur.m - 1]}`;
+    return t.target > 1 ? `${base}, ${Math.min(t.days[i], t.target)} of ${t.target}` : base;
+  }
+
+  // Classes and fill level for one day's square
+  function cellState(t, i) {
+    const c = Math.min(t.days[i], t.target);
+    return { done: c >= t.target, part: c > 0 && c < t.target, p: (c / t.target).toFixed(3) };
+  }
+
+  function paintCell(b, t, r, i) {
+    const st = cellState(t, i);
+    b.classList.toggle('done', st.done);
+    b.classList.toggle('part', st.part);
+    b.style.setProperty('--p', st.p);
+    b.setAttribute('aria-pressed', st.done ? 'true' : st.part ? 'mixed' : 'false');
+    b.setAttribute('aria-label', cellLabel(t, r, i));
+  }
+
   function rowHtml(t, r, n, ti) {
     const num = String(r + 1).padStart(2, '0');
-    let s = `<div class="trow"><label class="tlab"><span class="num">${num}</span>`;
-    s += `<input class="tname" data-r="${r}" type="text" placeholder="Add a task" aria-label="Task ${r + 1} name" autocomplete="off" enterkeyhint="done"></label>`;
+    let s = `<div class="trow"><div class="tlab"><span class="num">${num}</span>`;
+    s += `<input class="tname" data-r="${r}" type="text" placeholder="Add a task" aria-label="Task ${r + 1} name" autocomplete="off" enterkeyhint="done">`;
+    s += `<button type="button" class="tgt${t.target > 1 ? ' multi' : ''}" data-r="${r}" aria-label="Times per day for task ${r + 1}: ${t.target}. Tap to change.">${targetLabel(t)}</button></div>`;
     for (let i = 0; i < 31; i++) {
       if (i >= n) { s += '<span class="cell out" aria-hidden="true"></span>'; continue; }
+      const st = cellState(t, i);
       const cls = ['cell'];
       if (isWeekend(i)) cls.push('we');
       if (i === ti) cls.push('today');
-      if (t.days[i]) cls.push('done');
-      s += `<button type="button" class="${cls.join(' ')}" data-r="${r}" data-d="${i}" aria-pressed="${t.days[i]}" aria-label="Task ${r + 1}, ${i + 1} ${MONTHS[cur.m - 1]}"></button>`;
+      if (st.done) cls.push('done');
+      if (st.part) cls.push('part');
+      const pressed = st.done ? 'true' : st.part ? 'mixed' : 'false';
+      s += `<button type="button" class="${cls.join(' ')}" style="--p:${st.p}" data-r="${r}" data-d="${i}" aria-pressed="${pressed}" aria-label="${cellLabel(t, r, i)}"></button>`;
     }
     s += `<div class="tot"><b data-tot="${r}">${countDone(t)}</b>/${n}</div></div>`;
     return s;
@@ -266,7 +317,7 @@
     let run = 0;
     if (named.length) {
       for (let i = 0; i <= last; i++) {
-        if (named.every((t) => t.days[i])) { all++; run++; if (run > best) best = run; } else run = 0;
+        if (named.every((t) => isDone(t, i))) { all++; run++; if (run > best) best = run; } else run = 0;
       }
     }
     el('statAll').textContent = String(all);
@@ -285,19 +336,39 @@
   }
 
   // ---------- interaction ----------
-  function buzz() { if (navigator.vibrate) navigator.vibrate(8); }
+  function buzz(pattern) { if (navigator.vibrate) navigator.vibrate(pattern || 8); }
 
   el('tasks').addEventListener('click', (e) => {
+    // Times-per-day button: cycles 1, 2, 3 ... up to the max, then back to 1
+    const tb = e.target.closest('button.tgt');
+    if (tb) {
+      const r = Number(tb.dataset.r);
+      const t = data.tasks[r];
+      const prev = t.target;
+      t.target = t.target >= CFG.maxTarget ? 1 : t.target + 1;
+      // Days already complete stay complete; part-done days keep their count
+      t.days = t.days.map((c) => (c >= prev ? t.target : Math.min(c, t.target)));
+      tb.textContent = targetLabel(t);
+      tb.classList.toggle('multi', t.target > 1);
+      tb.setAttribute('aria-label', `Times per day for task ${r + 1}: ${t.target}. Tap to change.`);
+      el('tasks').querySelectorAll(`button.cell[data-r="${r}"]`).forEach((b) => paintCell(b, t, r, Number(b.dataset.d)));
+      el('tasks').querySelector(`[data-tot="${r}"]`).textContent = String(countDone(t));
+      buzz();
+      updateStats();
+      changed();
+      return;
+    }
+
+    // A day's square: each tap adds one; once it reaches the target the next tap clears it
     const b = e.target.closest('button.cell');
     if (!b) return;
     const r = Number(b.dataset.r);
     const d = Number(b.dataset.d);
     const t = data.tasks[r];
-    t.days[d] = !t.days[d];
-    b.classList.toggle('done', t.days[d]);
-    b.setAttribute('aria-pressed', String(t.days[d]));
+    t.days[d] = t.days[d] >= t.target ? 0 : t.days[d] + 1;
+    paintCell(b, t, r, d);
     el('tasks').querySelector(`[data-tot="${r}"]`).textContent = String(countDone(t));
-    buzz();
+    buzz(t.days[d] === t.target && t.target > 1 ? [8, 60, 8] : 8);
     updateStats();
     changed();
   });

@@ -10,7 +10,7 @@ downloads it, checks it, swaps in the new server.py and public/ folder,
 and restarts itself. The data folder is never touched.
 
   GET  /api/month/YYYY-MM   -> {"exists": true, "data": {...}}
-                               or {"exists": false, "tasks": [names from the latest earlier month]}
+                               or {"exists": false, "templates": [{name, target} from the latest earlier month]}
   PUT  /api/month/YYYY-MM   -> saves the month (JSON object, up to 256 KB)
   GET  /api/version         -> {"version": "...", "update": {...}}  (the page reloads when version changes)
   GET  /api/health          -> {"ok": true, "version": "..."}
@@ -234,8 +234,8 @@ def month_file(key: str) -> Path:
     return DATA / f"{key}.json"
 
 
-def latest_task_names(before: str) -> list:
-    """Task names from the most recent saved month before `before`, so a new month starts with the same list."""
+def latest_task_templates(before: str) -> list:
+    """Task names and times-per-day from the most recent saved month before `before`, so a new month starts with the same list."""
     if not DATA.is_dir():
         return []
     earlier = sorted(p.stem for p in DATA.glob("*.json") if MONTH_RE.match(p.stem) and p.stem < before)
@@ -243,9 +243,14 @@ def latest_task_names(before: str) -> list:
         try:
             saved = json.loads(month_file(key).read_text(encoding="utf-8"))
             tasks = saved.get("tasks", []) if isinstance(saved, dict) else []
-            names = [t.get("name", "") for t in tasks if isinstance(t, dict) and isinstance(t.get("name", ""), str)]
-            if any(n.strip() for n in names):
-                return names
+            templates = []
+            for t in tasks:
+                if not isinstance(t, dict) or not isinstance(t.get("name", ""), str):
+                    continue
+                target = t.get("target", 1)
+                templates.append({"name": t.get("name", ""), "target": target if isinstance(target, int) and target > 0 else 1})
+            if any(t["name"].strip() for t in templates):
+                return templates
         except (OSError, ValueError):
             continue
     return []
@@ -306,7 +311,8 @@ class Handler(SimpleHTTPRequestHandler):
                     return self._json(200, {"exists": True, "data": json.loads(f.read_text(encoding="utf-8"))})
                 except (OSError, ValueError):
                     return self._json(500, {"error": "could not read saved month"})
-            return self._json(200, {"exists": False, "tasks": latest_task_names(key)})
+            templates = latest_task_templates(key)
+            return self._json(200, {"exists": False, "tasks": [t["name"] for t in templates], "templates": templates})
         if path.startswith("/api/"):
             return self._json(404, {"error": "not found"})
         return super().do_GET()
