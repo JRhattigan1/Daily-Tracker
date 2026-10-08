@@ -13,7 +13,7 @@
   --today: rgba(154, 91, 19, 0.09);
   --glow: none;
   --err: #a3261d;
-  --track: minmax(130px, 14%) repeat(31, minmax(0, 1fr)) 64px;
+  --track: minmax(180px, 19%) repeat(31, minmax(0, 1fr)) 52px;
   --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   color-scheme: light;
@@ -243,8 +243,8 @@ h1 .yr { color: var(--ink); font-weight: 400; }
 .tlab {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
-  padding: 0 14px 6px 0;
+  gap: 6px;
+  padding: 0 10px 6px 0;
   min-width: 0;
 }
 
@@ -261,6 +261,7 @@ h1 .yr { color: var(--ink); font-weight: 400; }
   color: var(--ink);
   padding: 2px;
   outline: none;
+  text-overflow: ellipsis;
 }
 
 .tname::placeholder { color: var(--faint); }
@@ -306,9 +307,9 @@ h1 .yr { color: var(--ink); font-weight: 400; }
 .tgt {
   flex: none;
   align-self: flex-end;
-  min-width: 32px;
-  height: 26px;
-  padding: 0 6px;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 5px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: none;
@@ -320,7 +321,9 @@ h1 .yr { color: var(--ink); font-weight: 400; }
 
 .tgt.multi { color: var(--accent); border-color: var(--accent); font-weight: 500; }
 .tgt:active { background: var(--we); }
-.tname:placeholder-shown + .tgt:not(.multi) { visibility: hidden; }
+/* x1 only appears while editing that task's name; x2 and up always show */
+.tgt:not(.multi) { display: none; }
+.tlab:focus-within .tgt:not(.multi) { display: block; }
 .cell:active::before { transform: scale(0.86); }
 .cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cell.out { cursor: default; }

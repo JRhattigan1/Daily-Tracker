@@ -203,7 +203,7 @@
     const box = el('tasks');
     box.style.setProperty('--rows', String(data.tasks.length));
     box.innerHTML = data.tasks.map((t, r) => rowHtml(t, r, n, ti)).join('');
-    box.querySelectorAll('.tname').forEach((inp) => { inp.value = data.tasks[Number(inp.dataset.r)].name; });
+    box.querySelectorAll('.tname').forEach((inp) => { inp.value = data.tasks[Number(inp.dataset.r)].name; inp.title = inp.value; });
 
     // Axis labels
     let sa = '';
@@ -376,8 +376,18 @@
   el('tasks').addEventListener('input', (e) => {
     if (!e.target.classList.contains('tname')) return;
     data.tasks[Number(e.target.dataset.r)].name = e.target.value;
+    e.target.title = e.target.value;
     updateStats();
     changed();
+  });
+
+  // Keep the name field focused when tapping its times-per-day pill, so the pill doesn't vanish mid-tap
+  el('tasks').addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button.tgt')) e.preventDefault();
+  });
+
+  el('tasks').addEventListener('focusout', (e) => {
+    if (e.target.classList && e.target.classList.contains('tname')) e.target.scrollLeft = 0;
   });
 
   document.addEventListener('keydown', (e) => {
