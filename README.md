@@ -1,108 +1,49 @@
 # Daily Tracker
 
-A tap-to-tick version of the monthly habit sheet for a wall or coffee-table tablet. Tasks down the left, days across the top, with sleep, steps and mood plots underneath. Everything is saved on your server as one small JSON file per month.
+A self-hosted habit, sleep, steps and mood tracker for a tablet in the living room, with a phone layout for checking in on the go. It's a digital take on a paper monthly habit grid: tick things off as you go and watch the month fill in.
 
-It's one Python file and a folder of web files, standard library only, nothing to install.
+![The month sheet on a tablet](docs/images/desktop-light.png)
 
-## How updates work
+| Dark theme | Phone |
+|---|---|
+| ![Dark theme](docs/images/desktop-dark.png) | ![Phone layout](docs/images/phone-tasks.png) |
 
-The tracker keeps itself up to date from this GitHub repo. About 20 seconds after it starts, and again every night at around 03:00, it asks GitHub for the latest commit on `main`. If there's a new one it:
+## Features
 
-1. downloads it,
-2. checks the new version compiles and loads, and that all the page files are present,
-3. keeps the current version in `.previous`,
-4. swaps in the new `server.py` and `public` folder, then restarts itself.
+- **Month at a glance.** Tasks down the left, days across the top, with sleep, steps and mood plots lined up underneath.
+- **Chains.** Consecutive completed days join into one bar, so streaks and gaps stand out.
+- **Times per day.** Set a task to ×2 for things like brushing your teeth. Each tap fills the square further.
+- **Rest days.** Set which weekdays a task is due, like gym on Mon, Wed and Fri. Off days don't count against you, and chains carry through them.
+- **Phone and portrait layout.** Days run down and tasks across, with tabs for the plots. It switches automatically on rotate or resize.
+- **Light and dark.** Follows the device, or pick one.
+- **Saves itself.** Changes go to your server as you tap, as one readable JSON file per month.
+- **Updates itself.** It pulls new versions from this repo overnight and checks each one before it goes live. Your data is never touched.
+- **Tiny.** One Python file and a folder of web files. No dependencies and no build step.
 
-If any check fails it keeps running the current version and tries again the next night. The `data` folder is never touched.
+## Quick start
 
-The page asks the server for its version every few minutes and reloads itself when it changes, so the tablet follows along. It won't reload while you're typing or mid-save.
+On ZimaOS, copy `server.py` and `public/` to `/DATA/AppData/daily-tracker`. Then import [`zimaos-compose.yml`](zimaos-compose.yml) under **App Store > Install a customized app**, and open `http://<server-ip>:8090`.
 
-To update straight away rather than waiting for the night, restart the app from the ZimaOS dashboard.
-
-You can see what the updater last did at `http://<server-ip>:8090/api/version`, and in the app's logs on ZimaOS.
-
-The repo needs to be public for this to work without a login. There's no personal data in it, only code. If you'd rather keep it private, create a fine-grained GitHub token with read-only access to Contents on this repo, and add it as a `GITHUB_TOKEN` environment variable in the app's settings on ZimaOS.
-
-## Install on ZimaOS
-
-1. In the ZimaOS Files app, create the folder `/DATA/AppData/daily-tracker` and upload `server.py` and the `public` folder into it.
-2. On the dashboard, open the App Store, choose "Install a customized app", then Import, then the Docker Compose tab.
-3. Paste the contents of `zimaos-compose.yml` and install.
-4. Open `http://<zimaos-ip>:8090` on the tablet.
-
-It runs on the stock `python:3.12-alpine` image straight from that folder. Your data is saved in `/DATA/AppData/daily-tracker/data`.
-
-## Settings
-
-Set these as environment variables in the app's settings on ZimaOS. All are optional.
-
-| Variable | Default | What it does |
-|---|---|---|
-| `AUTO_UPDATE` | on | Set to `0` to turn self-updating off. It's always off when running from a git checkout, so a development copy is never overwritten. |
-| `UPDATE_REF` | `main` | Branch, tag or commit to follow. Set a commit to pin a version. |
-| `UPDATE_HOUR` | `3` | Hour of the nightly check. The container has no timezone data, so this is UTC (04:00 in summer). |
-| `UPDATE_REPO` | `JRhattigan1/Daily-Tracker` | Repo to update from. |
-| `GITHUB_TOKEN` | none | Only needed if the repo is private. |
-| `PORT`, `DATA_DIR` | `8080`, `./data` | Where it listens and saves. |
-
-The top of `public/app.js` has a few values for the page itself: the minimum number of task rows, the sleep range and target, and the steps range and target.
-
-## Rolling back
-
-Set `UPDATE_REF` to the commit you want (from the repo's commit history) and restart the app. It installs that commit and stays on it. Clear the variable to go back to following `main`.
-
-The previous version is also kept in `.previous` inside the app folder, if you ever need to copy it back by hand.
-
-## Run it without Docker
-
-Any machine with Python 3.9 or newer:
+Anywhere else with Python 3.9 or newer:
 
 ```
 python3 server.py
 ```
 
-It listens on port 8080 and stores data in `./data`.
+Then open `http://localhost:8080`.
 
-## Using it
+The [installation guide](docs/installation.md) has the details, plus tablet, phone and Home Assistant setup.
 
-- Tap a square to tick it, tap again to clear it.
-- For tasks you do more than once a day, tap the task name and a small ×1 pill appears beside it. Tap the pill to set how many times (up to ×6). Pills of ×2 and up stay visible; ×1 hides again to leave room for the name. Each tap on a square then adds one and fills it partway, and it counts as done once it's full. One more tap clears it. Changing the number keeps days you'd already completed as complete.
-- Tasks you don't do every day: tap the task name and a "7/wk" pill appears. Tap it to pick which weekdays the task is due (with Every day and Weekdays shortcuts). Off days show as a small dot. They don't count against the total or streaks, and ticking one anyway counts as a bonus.
-- Consecutive completed days join up into a solid bar, so streaks read as chains. Across rest days the chain carries on as a thinner link instead of breaking.
-- Tap a task name to type or edit it. Very long names end in "..." on narrow screens and show in full while you edit them. A new month starts with last month's task names and times per day.
-- On the plots, tap a day at the right height to set sleep, steps or mood, or drag a finger across several days to draw the line in one go. Sleep snaps to the nearest half hour and steps to the nearest 500, with dashed target lines at 8 hours and 10,000 steps. Tap an existing point again to clear it.
-- The arrows beside the month change month. "This month" jumps back.
-- Totals, days all done, best streak and averages work themselves out. Days all done and best streak only count days up to today, and only tasks that have a name.
-- The theme button cycles Auto, Light and Dark. Auto follows the tablet's setting.
+## Documentation
 
-Changes save automatically about half a second after you tap. If the server can't be reached, the tablet keeps a copy and retries every few seconds. The page also checks for changes every few minutes, so edits made on your phone appear on the tablet.
-
-## Phones, portrait and desktop browsers
-
-The layout adapts to the screen. On a tablet in landscape, or a desktop browser window, you get the full month sheet: tasks down the left, days across, and the three plots underneath.
-
-In portrait, on a phone, or in a narrow window, it flips. Days run down the screen and tasks run across, so the month builds up downwards and chains become vertical bars. Tabs at the top switch between Tasks, Sleep, Steps and Mood. The plots also run downwards: one row per day, with the value across. Tap a day's row at the right value to set it, or tap the same point again to clear it. Tap a task's name at the top to edit it (name, times per day and which days it's due), or tap + to add one. It opens on today's row and remembers which tab you were on.
-
-Rotating the device or resizing the window switches layouts straight away. Phones can open it the same way as the tablet, at `http://<server-ip>:8090` on your home network, and Add to Home Screen works there too.
-
-On a computer, squares highlight on hover and everything works with a mouse, including dragging across the plots. The page stops widening at about 1680 px, so it stays readable on large monitors.
-
-## Setting up the tablet
-
-**Android:** [Fully Kiosk Browser](https://www.fully-kiosk.com) is the usual choice. Set the start URL to the tracker, turn on "Keep screen on", and optionally use motion detection to wake the screen when you walk past.
-
-**iPad:** open the page in Safari, Share, Add to Home Screen. It then opens full screen without the address bar. Settings, Accessibility, Guided Access locks the iPad to it, and Display & Brightness, Auto-Lock controls when the screen sleeps.
-
-## Home Assistant
-
-You can show it on an HA dashboard with a Webpage card pointing at `http://<server-ip>:8090`. If you open HA over HTTPS, the browser will block an HTTP page inside it. Either open the tracker directly on the tablet, or put it behind the same reverse proxy as HA.
+- [User guide](docs/user-guide.md): how everything works
+- [Installation](docs/installation.md): ZimaOS, Docker, plain Python, tablets and phones
+- [Updates](docs/updates.md): self-updating, pinning a version, rolling back
+- [Configuration](docs/configuration.md): server and page settings
+- [Data and API](docs/data-and-api.md): the file format, backups and the HTTP API
+- [Development](docs/development.md): how the code works and how to change it
+- [Troubleshooting](docs/troubleshooting.md): status messages and common fixes
 
 ## Security
 
-There's no login. It's meant for your home network only. Don't forward the port to the internet. If you want to reach it from outside, go through a VPN such as Tailscale or WireGuard.
-
-The updater only ever downloads from the repo it's set to follow, and only replaces `server.py` and the `public` folder.
-
-## Backups
-
-Copy the `data` folder. Each month is a readable JSON file, for example `2026-11.json`.
+There's no login. It's meant for your home network only, so don't forward its port to the internet. To use it away from home, go through a VPN such as Tailscale or WireGuard.
