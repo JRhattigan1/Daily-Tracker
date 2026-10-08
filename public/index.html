@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Daily Tracker</title>
+<meta name="theme-color" content="#fdfcf9">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tracker">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<main class="page">
+
+  <header class="top">
+    <div class="titleblock">
+      <div class="eyebrow">Daily tracker</div>
+      <div class="titlerow">
+        <button id="prev" class="nav" type="button" aria-label="Previous month">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <h1><span id="month"></span> <span id="year" class="yr"></span></h1>
+        <button id="next" class="nav" type="button" aria-label="Next month">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button id="todayBtn" class="pill" type="button" hidden>This month</button>
+      </div>
+    </div>
+    <div class="topright">
+      <label class="field focus"><span>Focus this month</span><input id="focus" type="text" autocomplete="off" enterkeyhint="done"></label>
+      <div class="meta">
+        <span id="status" class="status" aria-live="polite"></span>
+        <button id="themeBtn" class="pill" type="button"></button>
+      </div>
+    </div>
+  </header>
+
+  <section class="grid" aria-label="Daily tasks">
+    <div id="dayhead" class="track dayhead"></div>
+    <div id="tasks" class="tasks"></div>
+  </section>
+
+  <section class="plot" aria-label="Sleep">
+    <div class="ptitle">
+      <div><h2>Sleep</h2><p>hours a night</p></div>
+      <div id="sleepAxis" class="axis" aria-hidden="true"></div>
+    </div>
+    <svg id="sleepSvg" class="psvg" role="group" aria-label="Sleep plot. Tap a day at the right height, or drag across several days."></svg>
+  </section>
+
+  <section class="plot" aria-label="Mood">
+    <div class="ptitle">
+      <div><h2>Mood</h2><p>how the day felt</p></div>
+      <div id="moodAxis" class="axis" aria-hidden="true"></div>
+    </div>
+    <svg id="moodSvg" class="psvg" role="group" aria-label="Mood plot. Tap a day at the right height, or drag across several days."></svg>
+  </section>
+
+  <div id="dayaxis" class="track dayaxis" aria-hidden="true"></div>
+
+  <footer class="foot">
+    <div class="stat"><span>Days all done</span><b id="statAll">0</b></div>
+    <div class="stat"><span>Best streak</span><b id="statStreak">0</b></div>
+    <div class="stat"><span>Avg sleep</span><b id="statSleep">-</b></div>
+    <div class="stat"><span>Avg mood</span><b id="statMood">-</b></div>
+    <label class="field notes"><span>Notes</span><input id="notes" type="text" autocomplete="off" enterkeyhint="done"></label>
+  </footer>
+
+</main>
+<script src="app.js"></script>
+</body>
+</html>

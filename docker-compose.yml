@@ -1,0 +1,12 @@
+services:
+  daily-tracker:
+    build: .
+    image: daily-tracker:latest
+    container_name: daily-tracker
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=Europe/London
