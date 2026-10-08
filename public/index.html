@@ -43,10 +43,21 @@
     </div>
   </header>
 
+  <!-- Portrait and narrow screens: days run down, tasks across, plots on tabs -->
+  <section id="mview" class="mview" aria-label="Tracker">
+    <nav class="mtabs" role="tablist" aria-label="View">
+      <button type="button" role="tab" data-tab="tasks">Tasks</button>
+      <button type="button" role="tab" data-tab="sleep">Sleep</button>
+      <button type="button" role="tab" data-tab="steps">Steps</button>
+      <button type="button" role="tab" data-tab="mood">Mood</button>
+    </nav>
+    <div id="mhead" class="mhead"></div>
+    <div id="mbody" class="mbody"></div>
+  </section>
+
   <section class="grid" aria-label="Daily tasks">
     <div id="dayhead" class="track dayhead"></div>
     <div id="tasks" class="tasks"></div>
-    <div id="score" class="track score" aria-label="Daily score: share of each day's tasks done"></div>
   </section>
 
   <section class="plot" aria-label="Sleep">
@@ -86,6 +97,35 @@
 
 </main>
 
+<div id="tsheet" class="sched tsheet" role="dialog" aria-labelledby="tsTitle" hidden>
+  <div id="tsTitle" class="sched-title">Task</div>
+  <label class="field tsname"><span>Name</span><input id="tsName" type="text" autocomplete="off" enterkeyhint="done" placeholder="e.g. Brush teeth"></label>
+  <div class="tsrow">
+    <span>Times per day</span>
+    <div class="stepper">
+      <button type="button" id="tsLess" aria-label="Fewer times per day">&minus;</button>
+      <b id="tsTarget">1</b>
+      <button type="button" id="tsMore" aria-label="More times per day">+</button>
+    </div>
+  </div>
+  <div class="tsrow"><span>Due on</span></div>
+  <div class="sched-days" id="tsDays">
+    <button type="button" data-wd="1">Mon</button>
+    <button type="button" data-wd="2">Tue</button>
+    <button type="button" data-wd="3">Wed</button>
+    <button type="button" data-wd="4">Thu</button>
+    <button type="button" data-wd="5">Fri</button>
+    <button type="button" data-wd="6">Sat</button>
+    <button type="button" data-wd="0">Sun</button>
+  </div>
+  <div class="sched-actions">
+    <button type="button" class="pill" data-preset="all">Every day</button>
+    <button type="button" class="pill" data-preset="weekdays">Weekdays</button>
+    <button type="button" id="tsDone" class="pill strong">Done</button>
+  </div>
+  <button type="button" id="tsRemove" class="linkbtn">Remove this task</button>
+</div>
+
 <div id="sched" class="sched" role="dialog" aria-labelledby="schedTitle" hidden>
   <div id="schedTitle" class="sched-title"></div>
   <div class="sched-days">
@@ -102,7 +142,7 @@
     <button type="button" class="pill" data-preset="weekdays">Weekdays</button>
     <button type="button" id="schedDone" class="pill strong">Done</button>
   </div>
-  <p class="sched-note">Rest days are skipped: they don&#39;t count against totals, streaks or the day score, and chains carry straight through them.</p>
+  <p class="sched-note">Rest days are skipped: they don&#39;t count against totals or streaks, and chains carry straight through them.</p>
 </div>
 <script src="app.js"></script>
 </body>

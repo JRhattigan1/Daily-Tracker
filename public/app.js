@@ -36,6 +36,18 @@
   const PLOT_KINDS = Object.keys(PLOTS);
 
   const el = (id) => document.getElementById(id);
+  const esc = (str) => String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // Portrait, narrow or very short screens get the "days down, tasks across" layout
+  const PORTRAIT_MQ = window.matchMedia('(orientation: portrait), (max-width: 899px), (max-height: 560px)');
+  let portrait = PORTRAIT_MQ.matches;
+  document.documentElement.classList.toggle('m', portrait);
+  let mTab = 'tasks';
+  try { mTab = localStorage.getItem('tracker:tab') || 'tasks'; } catch (_) { /* default */ }
+  if (!['tasks', 'sleep', 'steps', 'mood'].includes(mTab)) mTab = 'tasks';
+  let mScrolledFor = '';
+  const M_ROW = 40;      // row height for tasks in the portrait layout
+  const M_PLOT_ROW = 34; // row height for plots in the portrait layout
 
   let cur = nowYM();
   let data = null;
@@ -158,12 +170,6 @@
     return { jl, jr, thru };
   }
 
-  // Share of the day's due tasks that were done (part-done counts partly). null if nothing was due.
-  function dayScore(i) {
-    const named = data.tasks.filter((t) => t.name.trim() && isDue(t, i));
-    if (!named.length) return null;
-    return named.reduce((a, t) => a + Math.min(t.days[i], t.target) / t.target, 0) / named.length;
-  }
 
   function countDone(t) {
     const n = daysIn(cur);
@@ -244,6 +250,7 @@
   // ---------- rendering ----------
   function render() {
     closeSchedule();
+    closeTaskSheet(true);
     const n = daysIn(cur);
     const ti = todayIndex();
 
@@ -252,6 +259,12 @@
     el('todayBtn').hidden = keyOf(cur) === keyOf(nowYM());
     if (document.activeElement !== el('focus')) el('focus').value = data.focus;
     if (document.activeElement !== el('notes')) el('notes').value = data.notes;
+
+    if (portrait) {
+      renderMobile();
+      updateStats();
+      return;
+    }
 
     // Day header
     let h = '<div class="lab">Task</div>';
@@ -332,7 +345,7 @@
     const t = data.tasks[r];
     const ch = chainInfo(t);
     const ti = todayIndex();
-    el('tasks').querySelectorAll(`button.cell[data-r="${r}"]`).forEach((b) => {
+    document.querySelectorAll(`button.cell[data-r="${r}"]`).forEach((b) => {
       const i = Number(b.dataset.d);
       const v = cellView(t, i, ch, ti);
       b.className = v.cls;
@@ -340,17 +353,19 @@
       b.setAttribute('aria-pressed', v.pressed);
       b.setAttribute('aria-label', cellLabel(t, r, i));
     });
-    el('tasks').querySelector(`[data-tot="${r}"]`).innerHTML = totalHtml(t);
+    document.querySelectorAll(`[data-tot="${r}"]`).forEach((x) => { x.innerHTML = totalHtml(t); });
     paintPills(r);
   }
 
   function paintPills(r) {
     const t = data.tasks[r];
     const tb = el('tasks').querySelector(`button.tgt[data-r="${r}"]`);
+    if (!tb) return;
     tb.textContent = targetLabel(t);
     tb.classList.toggle('multi', t.target > 1);
     tb.setAttribute('aria-label', `Times per day for task ${r + 1}: ${t.target}. Tap to change.`);
     const sb = el('tasks').querySelector(`button.sch[data-r="${r}"]`);
+    if (!sb) return;
     sb.textContent = scheduleLabel(t);
     sb.classList.toggle('multi', !isEveryDay(t));
     sb.setAttribute('aria-label', `Days for task ${r + 1}: ${scheduleWords(t)}. Tap to change.`);
@@ -417,6 +432,265 @@
     svg.innerHTML = s;
   }
 
+  // ---------- shared task edits (used by both layouts) ----------
+  function setTarget(t, next) {
+    const prev = t.target;
+    t.target = cleanTarget(next);
+    // Days already complete stay complete; part-done days keep their count
+    t.days = t.days.map((c) => (c >= prev ? t.target : Math.min(c, t.target)));
+  }
+
+  function toggleDue(t, d) {
+    t.schedule[d] = !t.schedule[d];
+    if (!t.schedule.some(Boolean)) t.schedule[d] = true; // at least one day
+  }
+
+  function presetDue(t, preset) {
+    t.schedule = preset === 'weekdays' ? [false, true, true, true, true, true, false] : EVERY_DAY.slice();
+  }
+
+  // A tap on a day's square: each tap adds one; once it reaches the target the next tap clears it
+  function tapCell(r, d) {
+    const t = data.tasks[r];
+    t.days[d] = t.days[d] >= t.target ? 0 : t.days[d] + 1;
+    paintRow(r);
+    buzz(t.days[d] === t.target && t.target > 1 ? [8, 60, 8] : 8);
+    updateStats();
+    changed();
+  }
+
+  // ---------- portrait layout ----------
+  function mobileColumns() {
+    const idx = [];
+    data.tasks.forEach((t, r) => { if (t.name.trim()) idx.push(r); });
+    return idx;
+  }
+
+  function renderMobile() {
+    const n = daysIn(cur);
+    const ti = todayIndex();
+    document.querySelectorAll('.mtabs [data-tab]').forEach((b) => {
+      const on = b.dataset.tab === mTab;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', String(on));
+    });
+
+    if (mTab === 'tasks') {
+      const cols = mobileColumns();
+      const grid = `grid-template-columns: 56px repeat(${cols.length + 1}, minmax(0, 1fr))`;
+      let h = `<div class="mgrid" style="${grid}"><div class="mcorner">Day</div>`;
+      for (const r of cols) {
+        const t = data.tasks[r];
+        const badges = [t.target > 1 ? targetLabel(t) : '', isEveryDay(t) ? '' : scheduleLabel(t)].filter(Boolean).join(' ');
+        h += `<button type="button" class="mth" data-r="${r}" aria-label="Edit ${esc(t.name)}">`;
+        h += `<span class="mth-name">${esc(t.name)}</span>`;
+        h += `<span class="mth-meta">${badges}</span>`;
+        h += `<span class="mth-tot" data-tot="${r}">${totalHtml(t)}</span></button>`;
+      }
+      h += `<button type="button" class="mth add" data-r="-1" aria-label="Add a task"><span>+</span></button></div>`;
+      el('mhead').innerHTML = h;
+
+      const chains = {};
+      for (const r of cols) chains[r] = chainInfo(data.tasks[r]);
+      let b = '';
+      for (let i = 0; i < n; i++) {
+        const cls = ['mrow'];
+        if (isWeekend(i)) cls.push('we');
+        if (i === ti) cls.push('today');
+        b += `<div class="${cls.join(' ')}" data-day="${i}" style="${grid}">`;
+        b += `<div class="mday"><b>${i + 1}</b><span>${WD_LONG[weekdayOf(i)]}</span></div>`;
+        for (const r of cols) {
+          const t = data.tasks[r];
+          const v = cellView(t, i, chains[r], ti);
+          b += `<button type="button" class="${v.cls}" style="--p:${v.p}" data-r="${r}" data-d="${i}" aria-pressed="${v.pressed}" aria-label="${esc(t.name)}, ${cellLabel(t, r, i).replace(/^Task \d+, /, '')}"></button>`;
+        }
+        b += '<span></span></div>';
+      }
+      if (!cols.length) b = '<p class="mempty">Tap + to add your first task.</p>' + b;
+      el('mbody').innerHTML = b;
+    } else {
+      const P = PLOTS[mTab];
+      let h = '<div class="maxis"><div class="mcorner">Day</div><div class="maxis-labels">';
+      for (let l = 0; l < P.levels; l++) {
+        const v = P.bottom + l * P.unit;
+        h += `<span class="${v === P.target ? 'tg' : ''}">${P.label(v)}</span>`;
+      }
+      h += '</div></div>';
+      el('mhead').innerHTML = h;
+
+      let b = `<div class="mplotwrap"><div class="mdays">`;
+      for (let i = 0; i < n; i++) {
+        const cls = ['mday'];
+        if (isWeekend(i)) cls.push('we');
+        if (i === ti) cls.push('today');
+        b += `<div class="${cls.join(' ')}" data-day="${i}"><b>${i + 1}</b><span>${WD_LONG[weekdayOf(i)]}</span></div>`;
+      }
+      b += `</div><svg class="mplot" data-kind="${mTab}" role="group" aria-label="${mTab} plot. Tap a day's row at the right value; tap it again to clear."></svg></div>`;
+      el('mbody').innerHTML = b;
+      drawMobilePlot();
+    }
+
+    // Jump to today once per month and tab, so the current week is in view
+    const scrollKey = `${keyOf(cur)}:${mTab}`;
+    if (ti >= 0 && mScrolledFor !== scrollKey) {
+      mScrolledFor = scrollKey;
+      const row = el('mbody').querySelector(`[data-day="${ti}"]`);
+      if (row) requestAnimationFrame(() => row.scrollIntoView({ block: 'center' }));
+    }
+  }
+
+  // Plots run down the page in portrait: one row per day, value across
+  function drawMobilePlot() {
+    if (!portrait || mTab === 'tasks') return;
+    const svg = el('mbody').querySelector('svg.mplot');
+    if (!svg) return;
+    const P = PLOTS[mTab];
+    const n = daysIn(cur);
+    const ti = todayIndex();
+    const w = svg.clientWidth;
+    const h = n * M_PLOT_ROW;
+    if (!w) return;
+    svg.style.height = `${h}px`;
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    const colW = w / P.levels;
+    const x = (v) => (((v - P.bottom) / P.unit + 0.5) * colW).toFixed(1);
+    const y = (i) => ((i + 0.5) * M_PLOT_ROW).toFixed(1);
+
+    let s = '';
+    for (let i = 0; i < n; i++) {
+      if (i === ti) s += `<rect class="today" x="0" y="${i * M_PLOT_ROW}" width="${w}" height="${M_PLOT_ROW}"/>`;
+      else if (isWeekend(i)) s += `<rect class="we" x="0" y="${i * M_PLOT_ROW}" width="${w}" height="${M_PLOT_ROW}"/>`;
+    }
+    if (P.target != null) s += `<line class="target" x1="${x(P.target)}" x2="${x(P.target)}" y1="0" y2="${h}"/>`;
+    for (let i = 0; i < n; i++) {
+      for (let l = 0; l < P.levels; l++) s += `<circle class="dot" cx="${((l + 0.5) * colW).toFixed(1)}" cy="${y(i)}" r="2"/>`;
+    }
+    const vals = data[mTab];
+    let seg = [];
+    const flush = () => { if (seg.length > 1) s += `<polyline class="line" points="${seg.join(' ')}"/>`; seg = []; };
+    for (let i = 0; i < n; i++) {
+      if (vals[i] == null) flush(); else seg.push(`${x(vals[i])},${y(i)}`);
+    }
+    flush();
+    for (let i = 0; i < n; i++) if (vals[i] != null) s += `<circle class="pt" cx="${x(vals[i])}" cy="${y(i)}" r="5"/>`;
+    svg.innerHTML = s;
+  }
+
+  function tapMobilePlot(e, svg) {
+    const P = PLOTS[mTab];
+    const rect = svg.getBoundingClientRect();
+    const i = Math.floor((e.clientY - rect.top) / M_PLOT_ROW);
+    if (i < 0 || i >= daysIn(cur)) return;
+    const colW = rect.width / P.levels;
+    let v = P.bottom + ((e.clientX - rect.left) / colW - 0.5) * P.unit;
+    v = Math.round(v / P.step) * P.step;
+    v = Math.max(P.bottom, Math.min(P.top, v));
+    data[mTab][i] = data[mTab][i] === v ? null : v;
+    drawMobilePlot();
+    buzz();
+    updateStats();
+    changed();
+  }
+
+  // ---------- task sheet (portrait layout) ----------
+  let sheetRow = -1;
+
+  function paintSheet() {
+    const t = data.tasks[sheetRow];
+    el('tsTarget').textContent = String(t.target);
+    el('tsLess').disabled = t.target <= 1;
+    el('tsMore').disabled = t.target >= CFG.maxTarget;
+    el('tsDays').querySelectorAll('[data-wd]').forEach((b) => {
+      const on = t.schedule[Number(b.dataset.wd)];
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  function openTaskSheet(r) {
+    let isNew = false;
+    if (r < 0) {
+      r = data.tasks.findIndex((t) => !t.name.trim());
+      if (r < 0) { data.tasks.push(emptyTask('', 1)); r = data.tasks.length - 1; }
+      isNew = true;
+    }
+    sheetRow = r;
+    const t = data.tasks[r];
+    el('tsTitle').textContent = isNew ? 'New task' : 'Edit task';
+    el('tsName').value = t.name;
+    el('tsRemove').hidden = isNew;
+    paintSheet();
+    el('tsheet').hidden = false;
+    if (isNew) el('tsName').focus();
+  }
+
+  function closeTaskSheet(silent) {
+    if (el('tsheet').hidden) return;
+    el('tsheet').hidden = true;
+    sheetRow = -1;
+    if (document.activeElement === el('tsName')) el('tsName').blur();
+    if (!silent && portrait) renderMobile();
+  }
+
+  el('tsName').addEventListener('input', (e) => {
+    if (sheetRow < 0) return;
+    data.tasks[sheetRow].name = e.target.value;
+    updateStats();
+    changed();
+  });
+
+  el('tsheet').addEventListener('click', (e) => {
+    const t = data.tasks[sheetRow];
+    if (!t) return;
+    if (e.target.closest('#tsDone')) { closeTaskSheet(); return; }
+    if (e.target.closest('#tsRemove')) {
+      const name = t.name.trim() || 'this task';
+      if (!window.confirm(`Remove “${name}”? Its ticks for this month will be cleared.`)) return;
+      Object.assign(t, emptyTask('', 1));
+      closeTaskSheet();
+      updateStats();
+      changed();
+      return;
+    }
+    if (e.target.closest('#tsLess')) setTarget(t, t.target - 1);
+    else if (e.target.closest('#tsMore')) setTarget(t, t.target + 1);
+    else if (e.target.closest('[data-wd]')) toggleDue(t, Number(e.target.closest('[data-wd]').dataset.wd));
+    else if (e.target.closest('[data-preset]')) presetDue(t, e.target.closest('[data-preset]').dataset.preset);
+    else return;
+    paintSheet();
+    buzz();
+    updateStats();
+    changed();
+  });
+
+  el('mhead').addEventListener('click', (e) => {
+    const th = e.target.closest('button.mth');
+    if (th) openTaskSheet(Number(th.dataset.r));
+  });
+
+  el('mbody').addEventListener('click', (e) => {
+    const b = e.target.closest('button.cell');
+    if (b) { tapCell(Number(b.dataset.r), Number(b.dataset.d)); return; }
+    const svg = e.target.closest('svg.mplot');
+    if (svg) tapMobilePlot(e, svg);
+  });
+
+  document.querySelector('.mtabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tab]');
+    if (!b || b.dataset.tab === mTab) return;
+    mTab = b.dataset.tab;
+    try { localStorage.setItem('tracker:tab', mTab); } catch (_) { /* ignore */ }
+    renderMobile();
+  });
+
+  // Switch layouts when the device is rotated or the window resized past the breakpoint
+  PORTRAIT_MQ.addEventListener('change', () => {
+    portrait = PORTRAIT_MQ.matches;
+    document.documentElement.classList.toggle('m', portrait);
+    mScrolledFor = '';
+    if (data) render();
+  });
+
   function updateStats() {
     const n = daysIn(cur);
     const last = lastCountedDay();
@@ -449,31 +723,8 @@
       el('statMood').textContent = '-';
     }
 
-    renderScore();
   }
 
-  // Daily score strip: each day shaded by the share of that day's tasks done
-  function renderScore() {
-    const n = daysIn(cur);
-    const last = lastCountedDay();
-    const ti = todayIndex();
-    let s = '<div class="lab">Day score</div>';
-    const counted = [];
-    for (let i = 0; i < 31; i++) {
-      if (i >= n) { s += '<span class="sc out"></span>'; continue; }
-      const f = dayScore(i);
-      if (f !== null && i <= last) counted.push(f);
-      const cls = ['sc'];
-      if (f === null) cls.push('none');
-      if (f === 1) cls.push('full');
-      if (i === ti) cls.push('today');
-      const pct = f === null ? 'nothing due' : `${Math.round(f * 100)}%`;
-      s += `<span class="${cls.join(' ')}" style="--f:${f === null ? 0 : f.toFixed(3)}" title="${i + 1} ${MONTHS[cur.m - 1]}: ${pct}"></span>`;
-    }
-    const avg = counted.length ? `${Math.round((counted.reduce((a, b) => a + b, 0) / counted.length) * 100)}%` : '-';
-    s += `<div class="tot" title="Average so far"><b>${avg}</b></div>`;
-    el('score').innerHTML = s;
-  }
 
   // ---------- interaction ----------
   function buzz(pattern) { if (navigator.vibrate) navigator.vibrate(pattern || 8); }
@@ -484,10 +735,7 @@
     if (tb) {
       const r = Number(tb.dataset.r);
       const t = data.tasks[r];
-      const prev = t.target;
-      t.target = t.target >= CFG.maxTarget ? 1 : t.target + 1;
-      // Days already complete stay complete; part-done days keep their count
-      t.days = t.days.map((c) => (c >= prev ? t.target : Math.min(c, t.target)));
+      setTarget(t, t.target >= CFG.maxTarget ? 1 : t.target + 1);
       paintRow(r);
       buzz();
       updateStats();
@@ -505,15 +753,7 @@
 
     // A day's square: each tap adds one; once it reaches the target the next tap clears it
     const b = e.target.closest('button.cell');
-    if (!b) return;
-    const r = Number(b.dataset.r);
-    const d = Number(b.dataset.d);
-    const t = data.tasks[r];
-    t.days[d] = t.days[d] >= t.target ? 0 : t.days[d] + 1;
-    paintRow(r);
-    buzz(t.days[d] === t.target && t.target > 1 ? [8, 60, 8] : 8);
-    updateStats();
-    changed();
+    if (b) tapCell(Number(b.dataset.r), Number(b.dataset.d));
   });
 
   el('tasks').addEventListener('input', (e) => {
@@ -570,11 +810,9 @@
     const wd = e.target.closest('[data-wd]');
     const pr = e.target.closest('[data-preset]');
     if (wd) {
-      const d = Number(wd.dataset.wd);
-      t.schedule[d] = !t.schedule[d];
-      if (!t.schedule.some(Boolean)) t.schedule[d] = true; // at least one day
+      toggleDue(t, Number(wd.dataset.wd));
     } else if (pr) {
-      t.schedule = pr.dataset.preset === 'weekdays' ? [false, true, true, true, true, true, false] : EVERY_DAY.slice();
+      presetDue(t, pr.dataset.preset);
     } else {
       return;
     }
@@ -587,10 +825,12 @@
 
   document.addEventListener('pointerdown', (e) => {
     if (!el('sched').hidden && !e.target.closest('#sched') && !e.target.closest('button.sch')) closeSchedule();
+    if (!el('tsheet').hidden && !e.target.closest('#tsheet') && !e.target.closest('button.mth')) closeTaskSheet();
   });
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !el('sched').hidden) closeSchedule();
+    if (e.key === 'Escape' && !el('tsheet').hidden) closeTaskSheet();
   });
 
   el('tasks').addEventListener('focusout', (e) => {
@@ -666,6 +906,7 @@
 
   async function go(delta) {
     closeSchedule();
+    closeTaskSheet(true);
     await flush();
     let m = cur.m + delta;
     let y = cur.y;
@@ -703,6 +944,8 @@
   if ('ResizeObserver' in window) {
     const ro = new ResizeObserver(() => { if (data) drawPlots(); });
     PLOT_KINDS.forEach((k) => ro.observe(el(PLOTS[k].id)));
+    const mro = new ResizeObserver(() => { if (data) drawMobilePlot(); });
+    mro.observe(el('mbody'));
   } else {
     window.addEventListener('resize', () => { if (data) drawPlots(); });
   }
@@ -710,7 +953,7 @@
   // Keep a wall tablet current: roll over at midnight, pick up edits made on other devices
   function idle() {
     const a = document.activeElement;
-    return !queue.size && !dragging && !flushing && el('sched').hidden && !(a && a.tagName === 'INPUT');
+    return !queue.size && !dragging && !flushing && el('sched').hidden && el('tsheet').hidden && !(a && a.tagName === 'INPUT');
   }
 
   setInterval(() => {

@@ -79,6 +79,8 @@ button { font: inherit; color: inherit; }
   display: grid;
   grid-template-rows: auto minmax(0, 7fr) minmax(0, 3.6fr) minmax(0, 3.6fr) minmax(0, 2.5fr) auto auto;
   gap: clamp(8px, 1.4vh, 16px);
+  max-width: 1680px;
+  margin: 0 auto;
 }
 
 /* Header */
@@ -188,7 +190,7 @@ h1 .yr { color: var(--ink); font-weight: 400; }
 .track { display: grid; grid-template-columns: var(--track); }
 
 /* Task grid */
-.grid { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; }
+.grid { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
 
 .dayhead { align-items: end; border-bottom: 1.5px solid var(--rule); padding-bottom: 6px; }
 
@@ -271,8 +273,8 @@ h1 .yr { color: var(--ink); font-weight: 400; }
   appearance: none;
   -webkit-appearance: none;
   position: relative;
-  container-type: inline-size;
-  --sq: min(78cqw, 26px); /* square size, from the cell's width */
+  container-type: size;
+  --sq: min(78cqw, 80cqh, 26px); /* square size, from the cell's width and height */
   border: 0;
   margin: 0;
   padding: 0;
@@ -326,7 +328,8 @@ h1 .yr { color: var(--ink); font-weight: 400; }
   left: calc((var(--sq) - 100cqw) / 2 - 1px);
   width: calc(100cqw - var(--sq) + 2px);
   height: var(--sq);
-  transform: translateY(-50%);
+  top: calc((100cqh - var(--sq)) / 2);
+  transform: none;
   background: var(--accent);
   pointer-events: none;
 }
@@ -371,33 +374,6 @@ h1 .yr { color: var(--ink); font-weight: 400; }
 /* Default settings (x1, 7/wk) only show while editing that task; anything else always shows */
 .pill-s:not(.multi) { display: none; }
 .tlab:focus-within .pill-s:not(.multi) { display: block; }
-
-/* Day score strip under the tasks */
-.score { align-items: center; height: 24px; border-bottom: 1px solid var(--line); }
-.score .lab { padding-bottom: 0; font-size: 11px; }
-
-.sc {
-  position: relative;
-  height: 12px;
-  margin: 0 1px;
-  border-radius: 3px;
-  background: var(--we);
-}
-
-.sc::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--accent);
-  opacity: var(--f, 0);
-}
-
-.sc.full::after { box-shadow: var(--glow); }
-.sc.today { outline: 1.5px solid var(--accent); outline-offset: 1px; }
-.sc.none { background: none; border: 1px dashed var(--line); box-sizing: border-box; }
-.sc.none::after, .sc.out::after { display: none; }
-.sc.out { background: none; }
 
 /* Rest days picker */
 .sched {
@@ -478,12 +454,12 @@ h1 .yr { color: var(--ink); font-weight: 400; }
   -webkit-user-select: none;
 }
 
-.psvg .we { fill: var(--we); }
-.psvg .today { fill: var(--today); }
-.psvg .dot { fill: var(--dot); }
-.psvg .target { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.6; }
-.psvg .line { fill: none; stroke: var(--accent); stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
-.psvg .pt { fill: var(--accent); stroke: var(--paper); stroke-width: 2; }
+:is(.psvg, .mplot) .we { fill: var(--we); }
+:is(.psvg, .mplot) .today { fill: var(--today); }
+:is(.psvg, .mplot) .dot { fill: var(--dot); }
+:is(.psvg, .mplot) .target { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.6; }
+:is(.psvg, .mplot) .line { fill: none; stroke: var(--accent); stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
+:is(.psvg, .mplot) .pt { fill: var(--accent); stroke: var(--paper); stroke-width: 2; }
 
 .dayaxis { border-top: 1px solid var(--line); padding-top: 4px; }
 
@@ -509,7 +485,248 @@ h1 .yr { color: var(--ink); font-weight: 400; }
 
 .notes { flex: 1; min-width: 220px; }
 
-/* Too narrow for 31 columns: keep the layout and let it scroll sideways */
-@media (max-width: 760px) {
-  .page { width: 960px; }
+
+
+
+/* Mouse and trackpad: hover feedback */
+@media (hover: hover) and (pointer: fine) {
+  .cell:not(.out):hover::before { border-color: var(--accent); }
+  .nav:hover, .pill:hover, .pill-s:hover { background: var(--we); }
 }
+
+/* ============ Portrait / narrow layout ============ */
+#mview { display: none; }
+.tsheet { left: 50%; bottom: 16px; transform: translateX(-50%); }
+
+html.m .page {
+  display: block;
+  height: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: max(12px, env(safe-area-inset-top)) 14px max(16px, env(safe-area-inset-bottom));
+}
+
+html.m .grid, html.m .plot, html.m #dayaxis { display: none; }
+html.m #mview { display: block; margin-top: 10px; }
+
+html.m .top { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 10px; }
+html.m .topright { flex: none; align-items: stretch; }
+html.m .meta { justify-content: space-between; }
+html.m h1 { font-size: 30px; }
+html.m .titlerow { flex-wrap: wrap; }
+
+.mtabs {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 6px 0;
+  background: var(--paper);
+}
+
+.mtabs button {
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  font: 500 12px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.mtabs button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+.mhead {
+  position: sticky;
+  top: 52px;
+  z-index: 5;
+  background: var(--paper);
+  border-bottom: 1.5px solid var(--rule);
+}
+
+.mgrid { display: grid; align-items: end; }
+
+.mcorner {
+  font: 11px var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0 0 8px 2px;
+}
+
+.mth {
+  appearance: none;
+  border: 0;
+  background: none;
+  min-width: 0;
+  min-height: 124px;
+  padding: 6px 1px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+  border-radius: 8px;
+}
+
+.mth:active { background: var(--we); }
+
+.mth-name {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  max-height: 86px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.mth-meta { font: 500 9px var(--mono); color: var(--accent); white-space: nowrap; min-height: 11px; }
+.mth-tot { font: 10px var(--mono); color: var(--muted); white-space: nowrap; }
+.mth-tot b { color: var(--ink); font-weight: 500; }
+
+.mth.add span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1.5px dashed var(--faint);
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.mrow {
+  display: grid;
+  height: 40px;
+  box-sizing: border-box;
+  align-items: stretch;
+  border-bottom: 1px solid var(--line);
+}
+
+.mrow.we { background: var(--we); }
+.mrow.today { background: var(--today); }
+html.m .cell.we:not(.done):not(.rest)::before { background-color: var(--paper); }
+html.m .cell.today { background: none; }
+
+.mday {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-left: 2px;
+  font-family: var(--mono);
+  min-width: 0;
+}
+
+.mday b { font-size: 14px; font-weight: 500; color: var(--ink); }
+.mday span { font-size: 11px; color: var(--muted); }
+.mrow.today .mday b, .mdays .mday.today b { color: var(--accent); }
+
+/* Squares sized from both the cell's width and height, and chains run downwards */
+html.m .cell {
+  container-type: size;
+  --sq: min(72cqw, 72cqh, 30px);
+}
+
+html.m .cell.done.jl::before { border-radius: 0 0 5px 5px; }
+html.m .cell.done.jr::before { border-radius: 5px 5px 0 0; }
+html.m .cell.done.jl.jr::before { border-radius: 0; }
+
+html.m .cell.done.jl::after {
+  left: calc((100cqw - var(--sq)) / 2);
+  top: calc((var(--sq) - 100cqh) / 2 - 2px);
+  width: var(--sq);
+  height: calc(100cqh - var(--sq) + 4px);
+  transform: none;
+}
+
+html.m .cell.thru::after {
+  left: calc((100cqw - var(--sq) * 0.34) / 2);
+  top: calc((var(--sq) - 100cqh) / 2 - 2px);
+  width: calc(var(--sq) * 0.34);
+  height: calc(200cqh - var(--sq) + 4px);
+  transform: none;
+}
+
+.mempty { margin: 16px 0; color: var(--muted); font-size: 14px; }
+
+/* Plots in portrait: value across, days down */
+.maxis { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: end; padding-top: 8px; }
+.maxis-labels { display: flex; }
+
+.maxis-labels span {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font: 10px var(--mono);
+  color: var(--muted);
+  padding-bottom: 8px;
+  white-space: nowrap;
+}
+
+.maxis-labels span.tg { color: var(--accent); font-weight: 500; }
+
+.mplotwrap { display: grid; grid-template-columns: 56px minmax(0, 1fr); }
+.mdays .mday { height: 34px; }
+.mdays .mday.we { background: var(--we); }
+.mdays .mday.today { background: var(--today); }
+.mplot { display: block; width: 100%; touch-action: manipulation; cursor: pointer; }
+
+html.m .foot {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+}
+
+html.m .notes { grid-column: 1 / -1; min-width: 0; }
+
+/* Task sheet */
+html.m .tsheet {
+  left: 8px;
+  right: 8px;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  width: auto;
+  transform: none;
+}
+
+.tsname { margin-bottom: 4px; }
+.tsrow { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 8px; font-size: 14px; color: var(--muted); }
+.stepper { display: flex; align-items: center; gap: 14px; }
+
+.stepper button {
+  width: 44px;
+  height: 44px;
+  border: 1.5px solid var(--box);
+  border-radius: 50%;
+  background: none;
+  font-size: 20px;
+  color: var(--ink);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.stepper button:disabled { opacity: 0.35; cursor: default; }
+.stepper b { font: 500 18px var(--mono); min-width: 1.5em; text-align: center; color: var(--ink); }
+
+.linkbtn {
+  display: block;
+  margin: 14px 0 0;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  font: 13px var(--sans);
+  color: var(--err);
+  cursor: pointer;
+}
+
+.linkbtn[hidden] { display: none; }

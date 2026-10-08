@@ -67,9 +67,8 @@ It listens on port 8080 and stores data in `./data`.
 
 - Tap a square to tick it, tap again to clear it.
 - For tasks you do more than once a day, tap the task name and a small ×1 pill appears beside it. Tap the pill to set how many times (up to ×6). Pills of ×2 and up stay visible; ×1 hides again to leave room for the name. Each tap on a square then adds one and fills it partway, and it counts as done once it's full. One more tap clears it. Changing the number keeps days you'd already completed as complete.
-- Tasks you don't do every day: tap the task name and a "7/wk" pill appears. Tap it to pick which weekdays the task is due (with Every day and Weekdays shortcuts). Off days show as a small dot. They don't count against the total, the day score or streaks, and ticking one anyway counts as a bonus.
+- Tasks you don't do every day: tap the task name and a "7/wk" pill appears. Tap it to pick which weekdays the task is due (with Every day and Weekdays shortcuts). Off days show as a small dot. They don't count against the total or streaks, and ticking one anyway counts as a bonus.
 - Consecutive completed days join up into a solid bar, so streaks read as chains. Across rest days the chain carries on as a thinner link instead of breaking.
-- The Day score strip under the tasks shades each day by how much of that day's due tasks you did (part-done tasks count partly), with the month's average on the right.
 - Tap a task name to type or edit it. Very long names end in "..." on narrow screens and show in full while you edit them. A new month starts with last month's task names and times per day.
 - On the plots, tap a day at the right height to set sleep, steps or mood, or drag a finger across several days to draw the line in one go. Sleep snaps to the nearest half hour and steps to the nearest 500, with dashed target lines at 8 hours and 10,000 steps. Tap an existing point again to clear it.
 - The arrows beside the month change month. "This month" jumps back.
@@ -77,6 +76,16 @@ It listens on port 8080 and stores data in `./data`.
 - The theme button cycles Auto, Light and Dark. Auto follows the tablet's setting.
 
 Changes save automatically about half a second after you tap. If the server can't be reached, the tablet keeps a copy and retries every few seconds. The page also checks for changes every few minutes, so edits made on your phone appear on the tablet.
+
+## Phones, portrait and desktop browsers
+
+The layout adapts to the screen. On a tablet in landscape, or a desktop browser window, you get the full month sheet: tasks down the left, days across, and the three plots underneath.
+
+In portrait, on a phone, or in a narrow window, it flips. Days run down the screen and tasks run across, so the month builds up downwards and chains become vertical bars. Tabs at the top switch between Tasks, Sleep, Steps and Mood. The plots also run downwards: one row per day, with the value across. Tap a day's row at the right value to set it, or tap the same point again to clear it. Tap a task's name at the top to edit it (name, times per day and which days it's due), or tap + to add one. It opens on today's row and remembers which tab you were on.
+
+Rotating the device or resizing the window switches layouts straight away. Phones can open it the same way as the tablet, at `http://<server-ip>:8090` on your home network, and Add to Home Screen works there too.
+
+On a computer, squares highlight on hover and everything works with a mouse, including dragging across the plots. The page stops widening at about 1680 px, so it stays readable on large monitors.
 
 ## Setting up the tablet
 
