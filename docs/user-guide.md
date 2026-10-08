@@ -10,6 +10,8 @@
 - [Chains](#chains)
 - [Sleep, steps and mood](#sleep-steps-and-mood)
 - [Stats](#stats)
+- [Month review](#month-review)
+- [Celebrations](#celebrations)
 - [Focus and notes](#focus-and-notes)
 - [Theme](#theme)
 - [Saving, offline and other devices](#saving-offline-and-other-devices)
@@ -120,6 +122,56 @@ The bar along the bottom works itself out as you go.
 | Avg mood | Average mood, shown as the nearest word and the number (1 is Rough, 5 is Great) |
 
 Days all done and best streak only count days up to today in the current month and the whole month for past months. Only tasks with a name are included.
+
+## Month review
+
+The month review pulls the month together so you can see what you've achieved. Open it with **Month review** at the top of the month sheet, or the **Review** tab in portrait. Use **Back to the month** or Escape to close it.
+
+![Month review](images/review.png)
+
+It covers the month you're looking at. For the current month it counts up to today, and for a past month it covers the whole month. Where last month has data, it compares the two at the same point, so on the 8th you're compared with the first 8 days of last month, not the whole of it.
+
+| Section | What it shows |
+|---|---|
+| Completion | The share of due tasks done so far, as a big number and a ring, with the change from last month at the same point |
+| Things done | Every completed task-day added up, rest-day bonuses included, with the change from last month at the same point |
+| Perfect days | Days where everything due was done, and the longest run of them |
+| Best chain | The longest chain of any task, and which task |
+| 8h+ nights, 10k+ step days | How often you hit the sleep and steps targets, out of the days you logged, with averages |
+| Building up | Things done climbing day by day this month, with last month's line in grey behind it, so you can see if you're ahead of your own pace. Hover or touch for each day's figures |
+| Your days | A calendar shaded by how much of each day's tasks you did. Perfect days are filled and ticked. Days with nothing due are dashed |
+| Tasks | Each task's due days done, with its best chain, the chain running now, and any bonus days |
+| Week by week | The share of due tasks done each week, Monday to Sunday |
+| Achievements | What you've earned this month (see below) |
+| Next up | For the current month: the nearest milestones, like the last few things needed for a perfect day today, or a chain about to reach 7 days |
+
+**Achievements** you can earn in a month:
+
+- Things done: 25, 50, 100, 150, 200 and onwards
+- A perfect week: every due task done from Monday to Sunday
+- Perfect days in a row
+- A chain of 7 days or more on a task
+- Never missed: a task done on every due day, with at least 7 due days so far
+- 5 or more nights at your sleep target, or days at your steps target
+- Ahead of last month at the same point
+
+![Achievements and next up](images/review-achievements.png)
+
+If you log both sleep and mood, and there are at least 3 nights either side of your sleep target, the review also tells you how your mood compared after longer and shorter nights. It only does this when the difference is big enough to be worth mentioning.
+
+Every chart has its numbers written on it or listed beside it, so nothing depends on hovering. Hovering or focusing gives the details for a single day, week or task.
+
+## Celebrations
+
+Small moments as you tick things off:
+
+- A square gives a little pop when you tap it.
+- **Perfect day:** when your tap completes everything due that day, the day's squares pulse and a message says so. If it extends a run of perfect days, it tells you how many.
+- **Chains:** when a task's chain reaches 3, 7, 14, 21 or 30 days, a message marks it.
+
+![A perfect day](images/celebrate.png)
+
+These only fire for today and past days, not for ticking ahead. If your device is set to reduce motion, the animations are switched off and the messages simply appear.
 
 ## Focus and notes
 

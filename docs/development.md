@@ -24,7 +24,8 @@
 ├── server.py               the server: web, API, saving and self-updating
 ├── public/
 │   ├── index.html          markup for both layouts, the rest days picker and the task sheet
-│   ├── app.js              all page behaviour
+│   ├── app.js              all page behaviour except the month review
+│   ├── review.js           the month review: its numbers, charts and achievements
 │   ├── app.css             all styling, light and dark
 │   ├── manifest.webmanifest, icon.svg, icon-*.png   home screen icons
 ├── zimaos-compose.yml      the compose file for ZimaOS and other Docker hosts
@@ -59,7 +60,12 @@ To check the portrait layout, narrow the browser window below 900 px or use the 
 5. **Loading and saving.** `load()` fetches a month. `changed()` puts the month in a save queue and keeps a copy in the browser's local storage. `flush()` sends the queue and retries every 5 seconds on failure.
 6. **Rendering.** `render()` draws the month sheet, or calls `renderMobile()` for portrait. `paintRow()` repaints one task's row after a tap without redrawing everything. `drawPlot()` draws the sheet-layout plots and `drawMobilePlot()` the portrait ones, both as SVG.
 7. **Interaction.** Taps on squares go through `tapCell()`. Times per day and rest days go through `setTarget()`, `toggleDue()` and `presetDue()`, shared by the sheet layout's pills and picker and the portrait task sheet.
-8. **Background jobs.** Midnight rollover, refreshing from the server every 5 minutes when idle, and reloading when the server version changes. `idle()` decides when it's safe to do these without getting in the user's way.
+8. **Celebrations and the review.** `tapCell()` calls `celebrate()` when a tap adds to a day, which pops the square and shows a toast for a newly perfect day or a chain milestone. `reviewInto()` fetches last month (cached, and dropped from the cache when that month is edited) and hands both months to `review.js`.
+9. **Background jobs.** Midnight rollover, refreshing from the server every 5 minutes when idle, and reloading when the server version changes. `idle()` decides when it's safe to do these without getting in the user's way.
+
+`public/review.js` is separate and self-contained. It takes a month's data and works out everything from it, so the same code measures last month for comparisons. `compute()` does the numbers (completion, things done, perfect days, chains, weeks, sleep and steps targets, the mood insight). `achievements()` and `nextUp()` turn those into the lists. `render()` builds the page, with the charts drawn as SVG and HTML, and a single tooltip set with `textContent`.
+
+The charts follow a few rules worth keeping: one accent hue for "how much", last month in grey as context rather than a second colour, no second y-axis, values written on or beside every chart so nothing depends on hovering, and the same tokens in light and dark.
 
 Styling notes:
 

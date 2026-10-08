@@ -8,7 +8,7 @@ Daily Tracker is a self-hosted habit, sleep, steps and mood tracker built for a 
 
 | Page | What's in it |
 |---|---|
-| [User guide](user-guide.md) | Everything the page does: tasks, times per day, rest days, chains, the plots, stats, layouts and saving |
+| [User guide](user-guide.md) | Everything the page does: tasks, times per day, rest days, chains, the plots, stats, the month review, celebrations, layouts and saving |
 | [Installation](installation.md) | Running it on ZimaOS, other Docker hosts or plain Python, and setting up a tablet or phone |
 | [Updates](updates.md) | How it keeps itself up to date from GitHub, pinning a version, rolling back and turning it off |
 | [Configuration](configuration.md) | Server settings (environment variables) and page settings |

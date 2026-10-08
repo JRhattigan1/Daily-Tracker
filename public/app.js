@@ -44,7 +44,7 @@
   document.documentElement.classList.toggle('m', portrait);
   let mTab = 'tasks';
   try { mTab = localStorage.getItem('tracker:tab') || 'tasks'; } catch (_) { /* default */ }
-  if (!['tasks', 'sleep', 'steps', 'mood'].includes(mTab)) mTab = 'tasks';
+  if (!['tasks', 'sleep', 'steps', 'mood', 'review'].includes(mTab)) mTab = 'tasks';
   let mScrolledFor = '';
   const M_ROW = 40;      // row height for tasks in the portrait layout
   const M_PLOT_ROW = 34; // row height for plots in the portrait layout
@@ -202,6 +202,7 @@
 
   function changed() {
     const key = keyOf(cur);
+    prevCache.delete(key);
     const body = JSON.stringify(data);
     queue.set(key, body);
     try { localStorage.setItem('tracker:' + key, body); } catch (_) { /* storage full or blocked */ }
@@ -259,6 +260,8 @@
     el('todayBtn').hidden = keyOf(cur) === keyOf(nowYM());
     if (document.activeElement !== el('focus')) el('focus').value = data.focus;
     if (document.activeElement !== el('notes')) el('notes').value = data.notes;
+
+    if (!el('review').hidden) refreshReview();
 
     if (portrait) {
       renderMobile();
@@ -452,12 +455,156 @@
   // A tap on a day's square: each tap adds one; once it reaches the target the next tap clears it
   function tapCell(r, d) {
     const t = data.tasks[r];
+    const before = t.days[d];
+    const wasDone = isDone(t, d);
+    const wasPerfect = perfectDay(d);
     t.days[d] = t.days[d] >= t.target ? 0 : t.days[d] + 1;
     paintRow(r);
     buzz(t.days[d] === t.target && t.target > 1 ? [8, 60, 8] : 8);
+    if (t.days[d] > before) celebrate(r, d, wasDone, wasPerfect);
     updateStats();
     changed();
   }
+
+  // ---------- celebrations ----------
+  const CHAIN_MILESTONES = [3, 7, 14, 21, 30];
+
+  function perfectDay(i) {
+    const due = data.tasks.filter((t) => t.name.trim() && isDue(t, i));
+    return due.length > 0 && due.every((t) => isDone(t, i));
+  }
+
+  // Length of the chain ending on day d (rest days don't break it)
+  function chainLength(t, d) {
+    let c = 0;
+    for (let k = d; k >= 0; k--) {
+      if (isDone(t, k)) c++;
+      else if (isDue(t, k)) break;
+    }
+    return c;
+  }
+
+  function perfectRun(d) {
+    let c = 0;
+    for (let k = d; k >= 0; k--) {
+      const anyDue = data.tasks.some((t) => t.name.trim() && isDue(t, k));
+      if (!anyDue) continue;
+      if (perfectDay(k)) c++; else break;
+    }
+    return c;
+  }
+
+  function flashCells(selector, cls, ms) {
+    document.querySelectorAll(selector).forEach((b) => {
+      b.classList.remove(cls);
+      void b.offsetWidth; // restart the animation
+      b.classList.add(cls);
+      setTimeout(() => b.classList.remove(cls), ms);
+    });
+  }
+
+  let toastTimer = null;
+  function toast(badge, strong, rest) {
+    const box = el('toast');
+    box.textContent = '';
+    const bd = document.createElement('span');
+    bd.className = 't-badge';
+    if (badge === 'check') bd.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-6.5"/></svg>';
+    else bd.textContent = badge;
+    const msg = document.createElement('span');
+    const b = document.createElement('b');
+    b.textContent = strong;
+    msg.appendChild(b);
+    if (rest) msg.appendChild(document.createTextNode(` ${rest}`));
+    box.appendChild(bd);
+    box.appendChild(msg);
+    box.hidden = false;
+    box.style.animation = 'none';
+    void box.offsetWidth;
+    box.style.animation = '';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { box.hidden = true; }, 3800);
+  }
+
+  function celebrate(r, d, wasDone, wasPerfect) {
+    flashCells(`button.cell[data-r="${r}"][data-d="${d}"]`, 'pop', 400);
+    const t = data.tasks[r];
+    if (wasDone || !isDone(t, d) || d > lastCountedDay() || !t.name.trim()) return;
+    const when = d === todayIndex() ? 'today' : `for ${WD_LONG[weekdayOf(d)]} ${d + 1}`;
+    if (!wasPerfect && perfectDay(d)) {
+      flashCells(`button.cell[data-d="${d}"].done`, 'party', 1900);
+      const run = perfectRun(d);
+      toast('check', `Everything done ${when}.`, run >= 2 ? `That's ${run} perfect days in a row.` : 'A perfect day.');
+      buzz([10, 50, 10, 50, 20]);
+      return;
+    }
+    const c = chainLength(t, d);
+    if (CHAIN_MILESTONES.includes(c)) {
+      toast(String(c), `${c} days in a row`, `of ${t.name.trim()}.`);
+    }
+  }
+
+  // ---------- month review ----------
+  const prevCache = new Map();
+
+  function prevYM(ym) { return ym.m === 1 ? { y: ym.y - 1, m: 12 } : { y: ym.y, m: ym.m - 1 }; }
+
+  async function loadPrev() {
+    const p = prevYM(cur);
+    const key = keyOf(p);
+    if (prevCache.has(key)) return prevCache.get(key);
+    try {
+      const res = await fetch(`api/month/${key}`, { cache: 'no-store' });
+      if (!res.ok) return null;
+      const body = await res.json();
+      const v = body.exists ? { y: p.y, m: p.m, data: normalise(body.data) } : null;
+      prevCache.set(key, v);
+      return v;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function reviewInto(container) {
+    const key = keyOf(cur);
+    const prev = await loadPrev();
+    if (keyOf(cur) !== key || !data) return;
+    window.TrackerReview.render(container, {
+      data,
+      prev,
+      y: cur.y,
+      m: cur.m,
+      last: lastCountedDay(),
+      isCurrentMonth: key === keyOf(nowYM()),
+      sleepTarget: CFG.sleepTarget,
+      stepsTarget: CFG.stepsTarget,
+    });
+  }
+
+  function refreshReview() {
+    el('reviewTitle').innerHTML = `${MONTHS[cur.m - 1]} ${cur.y} <span>review</span>`;
+    reviewInto(el('reviewBody'));
+  }
+
+  function openReview() {
+    el('review').hidden = false;
+    document.body.style.overflow = 'hidden';
+    el('review').scrollTop = 0;
+    refreshReview();
+    el('reviewClose').focus();
+  }
+
+  function closeReview() {
+    if (el('review').hidden) return;
+    el('review').hidden = true;
+    document.body.style.overflow = '';
+    const tip = document.getElementById('rvTip');
+    if (tip) tip.hidden = true;
+    el('reviewBtn').focus();
+  }
+
+  el('reviewBtn').addEventListener('click', openReview);
+  el('reviewClose').addEventListener('click', closeReview);
 
   // ---------- portrait layout ----------
   function mobileColumns() {
@@ -474,6 +621,12 @@
       b.classList.toggle('on', on);
       b.setAttribute('aria-selected', String(on));
     });
+
+    if (mTab === 'review') {
+      el('mhead').innerHTML = '';
+      reviewInto(el('mbody'));
+      return;
+    }
 
     if (mTab === 'tasks') {
       const cols = mobileColumns();
@@ -831,6 +984,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !el('sched').hidden) closeSchedule();
     if (e.key === 'Escape' && !el('tsheet').hidden) closeTaskSheet();
+    if (e.key === 'Escape' && !el('review').hidden) closeReview();
   });
 
   el('tasks').addEventListener('focusout', (e) => {

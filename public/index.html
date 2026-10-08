@@ -38,6 +38,7 @@
       <label class="field focus"><span>Focus this month</span><input id="focus" type="text" autocomplete="off" enterkeyhint="done"></label>
       <div class="meta">
         <span id="status" class="status" aria-live="polite"></span>
+        <button id="reviewBtn" class="pill" type="button" aria-haspopup="dialog">Month review</button>
         <button id="themeBtn" class="pill" type="button"></button>
       </div>
     </div>
@@ -50,6 +51,7 @@
       <button type="button" role="tab" data-tab="sleep">Sleep</button>
       <button type="button" role="tab" data-tab="steps">Steps</button>
       <button type="button" role="tab" data-tab="mood">Mood</button>
+      <button type="button" role="tab" data-tab="review">Review</button>
     </nav>
     <div id="mhead" class="mhead"></div>
     <div id="mbody" class="mbody"></div>
@@ -96,6 +98,18 @@
   </footer>
 
 </main>
+
+<div id="review" class="review" role="dialog" aria-modal="true" aria-labelledby="reviewTitle" hidden>
+  <div class="review-inner">
+    <div class="review-top">
+      <h2 id="reviewTitle"></h2>
+      <button id="reviewClose" class="pill" type="button">Back to the month</button>
+    </div>
+    <div id="reviewBody"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <div id="tsheet" class="sched tsheet" role="dialog" aria-labelledby="tsTitle" hidden>
   <div id="tsTitle" class="sched-title">Task</div>
@@ -144,6 +158,7 @@
   </div>
   <p class="sched-note">Rest days are skipped: they don&#39;t count against totals or streaks, and chains carry straight through them.</p>
 </div>
+<script src="review.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

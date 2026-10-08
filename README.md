@@ -8,12 +8,16 @@ A self-hosted habit, sleep, steps and mood tracker for a tablet in the living ro
 |---|---|
 | ![Dark theme](docs/images/desktop-dark.png) | ![Phone layout](docs/images/phone-tasks.png) |
 
+![Month review](docs/images/review.png)
+
 ## Features
 
 - **Month at a glance.** Tasks down the left, days across the top, with sleep, steps and mood plots lined up underneath.
 - **Chains.** Consecutive completed days join into one bar, so streaks and gaps stand out.
 - **Times per day.** Set a task to ×2 for things like brushing your teeth. Each tap fills the square further.
 - **Rest days.** Set which weekdays a task is due, like gym on Mon, Wed and Fri. Off days don't count against you, and chains carry through them.
+- **Month review.** A completion ring, your tally building up against last month's pace, a calendar of perfect days, per-task streaks, week by week, and achievements to earn.
+- **Celebrations.** A pop with each tick, and a moment when you finish a whole day or hit a 3, 7, 14, 21 or 30-day chain.
 - **Phone and portrait layout.** Days run down and tasks across, with tabs for the plots. It switches automatically on rotate or resize.
 - **Light and dark.** Follows the device, or pick one.
 - **Saves itself.** Changes go to your server as you tap, as one readable JSON file per month.
